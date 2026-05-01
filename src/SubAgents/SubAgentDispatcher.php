@@ -36,10 +36,17 @@ class SubAgentDispatcher
         // Get sub-agent config
         $config = $this->registry->get($subAgentId);
 
-        // Condense context
+        // Condense context, informing the condenser about the sub-agent's role
+        $taskDescription = sprintf(
+            "Task for sub-agent '%s' (%s): %s",
+            $config->id,
+            $config->instructions,
+            $message->getContent() ?? ''
+        );
+
         $condensed = $this->condenser->condense(
             $currentMessages,
-            $message->getContent() ?? '',
+            $taskDescription,
             $config->contextWindow,
             $config->contextStrategy
         );

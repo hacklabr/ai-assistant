@@ -48,4 +48,30 @@ interface LearningStorageInterface
      * @return string[]
      */
     public function getToolNames(): array;
+
+    /**
+     * Save a contextual learning entry.
+     */
+    public function saveLearning(LearningEntry $entry): void;
+
+    /**
+     * Get all learning entries for a specific context.
+     *
+     * @return LearningEntry[]
+     */
+    public function getLearnings(string $context): array;
+
+    /**
+     * Search learning entries by query across all contexts.
+     *
+     * @return LearningEntry[]
+     */
+    public function searchLearnings(string $query): array;
+
+    /**
+     * Get all contexts that have learning entries.
+     *
+     * @return string[]
+     */
+    public function getContexts(): array;
 }

@@ -18,6 +18,7 @@ class KnowledgeBase implements LearningStorageInterface
     ) {
         $this->ensureDirectoryExists($basePath . '/patterns');
         $this->ensureDirectoryExists($basePath . '/bugs');
+        $this->ensureDirectoryExists($basePath . '/learnings');
     }
 
     public function saveToolPattern(ToolPattern $pattern): void
@@ -126,6 +127,80 @@ class KnowledgeBase implements LearningStorageInterface
         return array_map(
             fn (string $file) => str_replace('_', '::', basename($file, '.md')),
             $files
+        );
+    }
+
+    public function saveLearning(LearningEntry $entry): void
+    {
+        $contextDir = $this->basePath . '/learnings/' . $this->sanitizeFilename($entry->context);
+        $this->ensureDirectoryExists($contextDir);
+
+        $id = $entry->id ?? uniqid('learn-', true);
+        $filepath = $contextDir . '/' . $id . '.md';
+
+        $content = $this->formatLearningEntry($entry, $id);
+        file_put_contents($filepath, $content, LOCK_EX);
+    }
+
+    public function getLearnings(string $context): array
+    {
+        $contextDir = $this->basePath . '/learnings/' . $this->sanitizeFilename($context);
+
+        if (!is_dir($contextDir)) {
+            return [];
+        }
+
+        $entries = [];
+        $files = glob($contextDir . '/*.md');
+
+        if ($files === false) {
+            return [];
+        }
+
+        foreach ($files as $file) {
+            $entries[] = $this->parseLearningEntry($file);
+        }
+
+        return $entries;
+    }
+
+    public function searchLearnings(string $query): array
+    {
+        $entries = [];
+        $contextDirs = glob($this->basePath . '/learnings/*', GLOB_ONLYDIR);
+
+        if ($contextDirs === false) {
+            return [];
+        }
+
+        foreach ($contextDirs as $contextDir) {
+            $files = glob($contextDir . '/*.md');
+            if ($files === false) {
+                continue;
+            }
+
+            foreach ($files as $file) {
+                $entry = $this->parseLearningEntry($file);
+                if ($entry->matches($query) > 0.3) {
+                    $entries[] = $entry;
+                }
+            }
+        }
+
+        return $entries;
+    }
+
+    public function getContexts(): array
+    {
+        $contextDirs = glob($this->basePath . '/learnings/*', GLOB_ONLYDIR);
+
+        if ($contextDirs === false) {
+            return [];
+        }
+
+        return array_map(
+            fn (string $dir) => str_replace('_', '::', basename($dir)),
+            $contextDirs
         );
     }
 
@@ -241,6 +316,54 @@ class KnowledgeBase implements LearningStorageInterface
     private function sanitizeFilename(string $name): string
     {
         return preg_replace('/[^a-zA-Z0-9_-]/', '_', $name);
+    }
+
+    private function formatLearningEntry(LearningEntry $entry, string $id): string
+    {
+        $yaml = "---\n";
+        $yaml .= "type: learning_entry\n";
+        $yaml .= "id: {$id}\n";
+        $yaml .= "context: {$entry->context}\n";
+        $yaml .= "worked_well: " . ($entry->workedWell ? 'true' : 'false') . "\n";
+        $yaml .= "timestamp: {$entry->timestamp->format('c')}\n";
+
+        if (!empty($entry->tags)) {
+            $yaml .= "tags:\n";
+            foreach ($entry->tags as $tag) {
+                $yaml .= "  - {$tag}\n";
+            }
+        }
+
+        $yaml .= "---\n\n";
+        $yaml .= "## Observation\n\n";
+        $yaml .= "{$entry->observation}\n";
+
+        return $yaml;
+    }
+
+    private function parseLearningEntry(string $filepath): LearningEntry
+    {
+        $content = file_get_contents($filepath);
+        $parsed = $this->parser->parse($content);
+        $frontmatter = $parsed['frontmatter'];
+
+        return new LearningEntry(
+            context: $frontmatter['context'] ?? 'unknown',
+            observation: $this->extractObservation($parsed['body']),
+            workedWell: $frontmatter['worked_well'] ?? false,
+            tags: $frontmatter['tags'] ?? [],
+            id: $frontmatter['id'] ?? basename($filepath, '.md'),
+            timestamp: new \DateTimeImmutable($frontmatter['timestamp'] ?? 'now'),
+        );
+    }
+
+    private function extractObservation(string $body): string
+    {
+        if (preg_match('/## Observation\n\n(.*)/s', $body, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return trim($body);
     }
 
     private function ensureDirectoryExists(string $path): void

@@ -32,6 +32,8 @@ class AssistantConfig
         public readonly ?string $storagePath = null,
         public readonly bool $autoLearn = false,
         public readonly ?string $learningPath = null,
+        public readonly bool $autoDelegate = true,
+        public readonly bool $requireLearningCheck = true,
         public readonly array $middleware = [],
     ) {}
 }

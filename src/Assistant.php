@@ -6,7 +6,7 @@ namespace HackLab\AIAssistant;
 
 use HackLab\AIAssistant\Context\ContextCondenserInterface;
 use HackLab\AIAssistant\Context\Strategies\HierarchicalStrategy;
-use HackLab\AIAssistant\Core\AssistantConfig;
+use HackLab\AIAssistant\AssistantConfig;
 use HackLab\AIAssistant\Learning\AutoLearningEngine;
 use HackLab\AIAssistant\Learning\BugCollector;
 use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
@@ -22,6 +22,11 @@ use HackLab\AIAssistant\SubAgents\SubAgentDispatcher;
 use HackLab\AIAssistant\SubAgents\SubAgentFactory;
 use HackLab\AIAssistant\SubAgents\SubAgentRegistry;
 use HackLab\AIAssistant\SubAgents\SubAgentResult;
+use HackLab\AIAssistant\Tools\DelegateTool;
+use HackLab\AIAssistant\Tools\FindSimilarIssuesTool;
+use HackLab\AIAssistant\Tools\GetContextInsightsTool;
+use HackLab\AIAssistant\Tools\RecordBugTool;
+use HackLab\AIAssistant\Tools\RecordLearningTool;
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
@@ -40,6 +45,7 @@ class Assistant extends Agent
     private SkillRegistry $skillRegistry;
     private ?StorageInterface $storage;
     private ?AutoLearningEngine $learningEngine = null;
+    private ?KnowledgeBase $knowledgeBase = null;
     private ContextCondenserInterface $contextCondenser;
 
     /**
@@ -91,9 +97,9 @@ class Assistant extends Agent
 
         // Initialize auto-learning if enabled
         if ($config->autoLearn && $config->learningPath !== null) {
-            $knowledgeBase = new KnowledgeBase($config->learningPath);
-            $toolLearner = new ToolLearner($knowledgeBase);
-            $bugCollector = new BugCollector($knowledgeBase);
+            $this->knowledgeBase = new KnowledgeBase($config->learningPath);
+            $toolLearner = new ToolLearner($this->knowledgeBase);
+            $bugCollector = new BugCollector($this->knowledgeBase);
             $suggestionEngine = new SuggestionEngine($toolLearner, $bugCollector);
 
             $this->learningEngine = new AutoLearningEngine(
@@ -127,6 +133,15 @@ class Assistant extends Agent
             }
         }
 
+        // Inject mandatory learning check instruction
+        if ($this->config->requireLearningCheck && $this->knowledgeBase !== null) {
+            $instructions .= "\n\n## MANDATORY LEARNING CHECK\n";
+            $instructions .= "Before using ANY tool for the first time in a conversation, you MUST call `get_context_insights` ";
+            $instructions .= "with the tool name as the context to check for known issues, successful patterns, or anti-patterns. ";
+            $instructions .= "Only proceed with the tool after reviewing the insights. ";
+            $instructions .= "You may skip this check only for tools you have already used successfully in the current conversation.";
+        }
+
         return $instructions;
     }
 
@@ -155,6 +170,23 @@ class Assistant extends Agent
             } catch (\Throwable $e) {
                 // Skip failed MCP connections
             }
+        }
+
+        // Add auto-delegation tool if enabled and sub-agents exist
+        if ($this->config->autoDelegate && $this->subAgentRegistry->all() !== []) {
+            $tools[] = new DelegateTool(
+                $this->subAgentDispatcher,
+                $this->subAgentRegistry,
+                fn() => $this->getChatHistory()->getMessages(),
+            );
+        }
+
+        // Add learning tools if auto-learning is enabled
+        if ($this->knowledgeBase !== null) {
+            $tools[] = new RecordLearningTool($this->knowledgeBase);
+            $tools[] = new GetContextInsightsTool($this->knowledgeBase);
+            $tools[] = new RecordBugTool($this->knowledgeBase);
+            $tools[] = new FindSimilarIssuesTool($this->knowledgeBase);
         }
 
         return $tools;
