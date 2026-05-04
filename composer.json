@@ -1,5 +1,5 @@
 {
-    "name": "hacklab/ai-assistant",
+    "name": "hacklabr/ai-assistant",
     "description": "Embeddable AI assistant framework for PHP built on Neuron AI",
     "type": "library",
     "license": "MIT",
