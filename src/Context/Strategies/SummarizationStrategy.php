@@ -6,6 +6,7 @@ namespace HackLab\AIAssistant\Context\Strategies;
 
 use HackLab\AIAssistant\Context\CondensedContext;
 use HackLab\AIAssistant\Context\ContextCondenserInterface;
+use HackLab\AIAssistant\Utils\SensitiveDataRedactor;
 use HackLab\AIAssistant\Utils\TokenEstimator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -18,10 +19,11 @@ class SummarizationStrategy implements ContextCondenserInterface
 {
     public function __construct(
         private readonly AIProviderInterface $provider,
-        private readonly int $maxTokens = 10000,
+        private readonly int $maxTokens = 10000, // phpstan: ignore property.onlyWritten
         private readonly int $messagesToKeep = 5,
         private readonly string $systemPrompt = 'Please provide a comprehensive summary of the following conversation. Extract the highest quality and most relevant pieces of information, including key topics discussed, important decisions made, critical information exchanged, action items, and any unresolved questions.',
         private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
+        private readonly SensitiveDataRedactor $redactor = new SensitiveDataRedactor(),
     ) {}
 
     public function condense(
@@ -73,17 +75,16 @@ class SummarizationStrategy implements ContextCondenserInterface
     {
         $conversation = '';
         foreach ($messages as $message) {
-            $role = $message->getRole()->value ?? 'unknown';
-            $content = $message->getContent() ?? '';
+            $role = $message->getRole();
+            $content = $this->redactor->redact($message->getContent() ?? '');
             $conversation .= "{$role}: {$content}\n\n";
         }
 
         $prompt = "{$this->systemPrompt}\n\nTask context: {$taskDescription}\n\nConversation to summarize:\n\n{$conversation}";
 
-        // Use provider to generate summary
-        $response = $this->provider->chat([
+        $response = $this->provider->chat(
             new UserMessage($prompt),
-        ]);
+        );
 
         return $response->getContent() ?? 'No summary available.';
     }

@@ -10,22 +10,16 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
-/**
- * Tool that allows the main assistant to auto-delegate tasks to sub-agents.
- *
- * When registered, the LLM can decide to invoke this tool to send a task
- * to a specialized sub-agent, along with condensed conversation context.
- */
 class DelegateTool extends Tool
 {
-    /**
-     * @param \Closure(): array<Message> $getCurrentMessages Returns current chat history
-     */
     public function __construct(
         private readonly SubAgentDispatcher $dispatcher,
         private readonly SubAgentRegistry $registry,
         private readonly \Closure $getCurrentMessages,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         parent::__construct(
             name: 'delegate_to_subagent',
@@ -62,20 +56,49 @@ class DelegateTool extends Tool
 
     public function __invoke(string $sub_agent_id, string $task, ?string $reason = null): string
     {
+        $this->logger->info('Sub-agent delegation initiated', [
+            'sub_agent' => $sub_agent_id,
+            'task_length' => strlen($task),
+            'reason' => $reason,
+        ]);
+
         if (!$this->registry->has($sub_agent_id)) {
             $available = implode(', ', array_keys($this->registry->all()));
+            $this->logger->error('Sub-agent not found', [
+                'requested' => $sub_agent_id,
+                'available' => $available,
+            ]);
             return "Error: Sub-agent '{$sub_agent_id}' not found. Available: {$available}";
         }
 
         $currentMessages = ($this->getCurrentMessages)();
 
-        $result = $this->dispatcher->delegate(
-            $sub_agent_id,
-            new UserMessage($task),
-            $currentMessages
-        );
+        $startTime = microtime(true);
 
-        return $result->getContent();
+        try {
+            $result = $this->dispatcher->delegate(
+                $sub_agent_id,
+                new UserMessage($task),
+                $currentMessages
+            );
+
+            $duration = round(microtime(true) - $startTime, 3);
+
+            $this->logger->info('Sub-agent delegation completed', [
+                'sub_agent' => $sub_agent_id,
+                'duration_s' => $duration,
+                'result_length' => strlen($result->getContent()),
+            ]);
+
+            return $result->getContent();
+        } catch (\Throwable $e) {
+            $this->logger->error('Sub-agent delegation failed', [
+                'sub_agent' => $sub_agent_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return "Error delegating to '{$sub_agent_id}': {$e->getMessage()}";
+        }
     }
 
     private function buildDescription(): string

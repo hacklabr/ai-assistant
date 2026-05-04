@@ -39,14 +39,17 @@ class RelevanceScorer
             $strategy = $this->strategies[$contextStrategy];
 
             // Keyword matching
-            foreach ($strategy['keywords'] ?? [] as $keyword) {
+            foreach ($strategy['keywords'] as $keyword) {
                 if (str_contains($messageLower, strtolower($keyword))) {
                     $score += 0.1;
                 }
             }
 
             // Pattern matching
-            foreach ($strategy['patterns'] ?? [] as $pattern) {
+            foreach ($strategy['patterns'] as $pattern) {
+                if (!$this->isValidRegex($pattern)) {
+                    continue;
+                }
                 if (preg_match($pattern, $messageContent)) {
                     $score += 0.15;
                 }
@@ -54,6 +57,14 @@ class RelevanceScorer
         }
 
         return min(1.0, $score);
+    }
+
+    private function isValidRegex(string $pattern): bool
+    {
+        set_error_handler(fn() => false);
+        $valid = preg_match($pattern, '') !== false;
+        restore_error_handler();
+        return $valid;
     }
 
     /**

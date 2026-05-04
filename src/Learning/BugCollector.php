@@ -32,7 +32,7 @@ class BugCollector
             id: $bugId,
             errorType: $error::class,
             errorMessage: $error->getMessage(),
-            stackTrace: $error->getTraceAsString(),
+            stackTrace: $this->sanitizeStackTrace($error->getTraceAsString()),
             context: $context,
             timestamp: new \DateTimeImmutable(),
             resolution: $resolution,
@@ -118,5 +118,21 @@ class BugCollector
     public function getUnresolved(): array
     {
         return $this->storage->searchBugs(['resolved' => false]);
+    }
+
+    private function sanitizeStackTrace(string $trace): string
+    {
+        $trace = preg_replace('#/home/[^\s/]+#', '/[HOME]', $trace);
+        $trace = preg_replace('#/var/www/[^\s/]+#', '/[APP]', $trace);
+        $trace = preg_replace('#/Users/[^\s/]+#', '/[HOME]', $trace);
+        $trace = preg_replace('#/root/#', '/[ROOT]/', $trace);
+
+        $lines = explode("\n", $trace);
+        if (count($lines) > 10) {
+            $lines = array_slice($lines, 0, 10);
+            $lines[] = '... [truncated]';
+        }
+
+        return implode("\n", $lines);
     }
 }

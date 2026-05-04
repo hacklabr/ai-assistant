@@ -7,6 +7,7 @@ namespace HackLab\AIAssistant\Context\Strategies;
 use HackLab\AIAssistant\Context\CondensedContext;
 use HackLab\AIAssistant\Context\ContextCondenserInterface;
 use HackLab\AIAssistant\Context\RelevanceScorer;
+use HackLab\AIAssistant\Utils\SensitiveDataRedactor;
 use HackLab\AIAssistant\Utils\TokenEstimator;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -26,6 +27,7 @@ class HierarchicalStrategy implements ContextCondenserInterface
         private readonly int $summaryThreshold = 8000,
         private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
         private readonly ?RelevanceScorer $relevanceScorer = null,
+        private readonly SensitiveDataRedactor $redactor = new SensitiveDataRedactor(),
     ) {}
 
     public function condense(
@@ -103,17 +105,17 @@ class HierarchicalStrategy implements ContextCondenserInterface
 
         $conversation = '';
         foreach ($messages as $message) {
-            $role = $message->getRole()->value ?? 'unknown';
-            $content = $message->getContent() ?? '';
+            $role = $message->getRole();
+            $content = $this->redactor->redact($message->getContent() ?? '');
             $conversation .= "{$role}: {$content}\n\n";
         }
 
         $prompt = "Please provide a comprehensive summary of the following conversation. Extract key topics, decisions, action items, and critical information.\n\nTask context: {$taskDescription}\n\nConversation:\n\n{$conversation}";
 
         try {
-            $response = $this->summarizationProvider->chat([
+            $response = $this->summarizationProvider->chat(
                 new UserMessage($prompt),
-            ]);
+            );
             return $response->getContent() ?? null;
         } catch (\Throwable $e) {
             return null;

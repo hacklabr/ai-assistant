@@ -12,6 +12,9 @@ use HackLab\AIAssistant\Utils\MarkdownParser;
  */
 class KnowledgeBase implements LearningStorageInterface
 {
+    private const int MAX_ENTRIES_PER_CONTEXT = 100;
+    private const int MAX_BUG_AGE_DAYS = 90;
+
     public function __construct(
         private readonly string $basePath,
         private readonly MarkdownParser $parser = new MarkdownParser(),
@@ -55,7 +58,7 @@ class KnowledgeBase implements LearningStorageInterface
 
     public function getBug(string $id): ?BugReport
     {
-        $filepath = $this->basePath . '/bugs/' . $id . '.md';
+        $filepath = $this->basePath . '/bugs/' . $this->sanitizeFilename($id) . '.md';
 
         if (!file_exists($filepath)) {
             return null;
@@ -202,6 +205,68 @@ class KnowledgeBase implements LearningStorageInterface
             fn (string $dir) => str_replace('_', '::', basename($dir)),
             $contextDirs
         );
+    }
+
+    public function cleanup(): int
+    {
+        $removed = 0;
+
+        $removed += $this->cleanupOldBugs();
+        $removed += $this->cleanupOverflowedLearnings();
+
+        return $removed;
+    }
+
+    private function cleanupOldBugs(): int
+    {
+        $removed = 0;
+        $files = glob($this->basePath . '/bugs/*.md');
+
+        if ($files === false) {
+            return 0;
+        }
+
+        $threshold = new \DateTimeImmutable('-' . self::MAX_BUG_AGE_DAYS . ' days');
+
+        foreach ($files as $file) {
+            $bug = $this->parseBugReport($file);
+
+            if ($bug->resolved && $bug->timestamp < $threshold) {
+                unlink($file);
+                $removed++;
+            }
+        }
+
+        return $removed;
+    }
+
+    private function cleanupOverflowedLearnings(): int
+    {
+        $removed = 0;
+        $contextDirs = glob($this->basePath . '/learnings/*', GLOB_ONLYDIR);
+
+        if ($contextDirs === false) {
+            return 0;
+        }
+
+        foreach ($contextDirs as $contextDir) {
+            $files = glob($contextDir . '/*.md');
+
+            if ($files === false || count($files) <= self::MAX_ENTRIES_PER_CONTEXT) {
+                continue;
+            }
+
+            usort($files, fn (string $a, string $b) => filemtime($b) <=> filemtime($a));
+
+            $toRemove = array_slice($files, self::MAX_ENTRIES_PER_CONTEXT);
+
+            foreach ($toRemove as $file) {
+                unlink($file);
+                $removed++;
+            }
+        }
+
+        return $removed;
     }
 
     private function formatToolPattern(ToolPattern $pattern): string
@@ -369,7 +434,7 @@ class KnowledgeBase implements LearningStorageInterface
     private function ensureDirectoryExists(string $path): void
     {
         if (!is_dir($path)) {
-            mkdir($path, 0755, true);
+            mkdir($path, 0750, true);
         }
     }
 }

@@ -117,6 +117,12 @@ if (empty($config)) {
 
     $save = strtolower(ask('Save configuration for future runs? (y/n)', 'y')) === 'y';
     if ($save) {
+        if ($configStorage->isEncryptionAvailable()) {
+            echo "Encryption key (HL_AI_ENCRYPTION_KEY) detected. Config will be encrypted.\n";
+        } else {
+            echo "Warning: HL_AI_ENCRYPTION_KEY not set. Config will be stored in plaintext.\n";
+            echo "Set the environment variable for encrypted storage.\n";
+        }
         $configStorage->save($config);
         echo "Config saved to {$configStorage->getPath()}\n";
     }

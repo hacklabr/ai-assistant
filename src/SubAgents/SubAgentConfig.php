@@ -13,7 +13,7 @@ use NeuronAI\Providers\AIProviderInterface;
 class SubAgentConfig
 {
     /**
-     * @param string[] $tools
+     * @param array<int, string|object> $tools Class names or ToolInterface instances
      * @param string[] $skills
      * @param array<int, array<string, mixed>> $mcps
      * @param array<int, mixed> $middleware

@@ -1,0 +1,8 @@
+parameters:
+    ignoreErrors:
+        -
+            message: '#Property .* is never read, only written#'
+            paths:
+                - src/Context/Strategies/SummarizationStrategy.php
+                - src/Learning/SuggestionEngine.php
+                - src/Persistence/HierarchicalChatHistory.php

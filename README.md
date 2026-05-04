@@ -7,9 +7,10 @@ An embeddable AI assistant framework for PHP built on top of [Neuron AI](https:/
 - **Context Condensation** - 4 strategies for intelligent context reduction before delegation
 - **Sub-Agent Orchestration** - Delegate tasks to specialized agents with automatically condensed context
 - **Skill System** - Configure reusable instruction modules via Markdown files with YAML frontmatter
+- **Auto-Learning** - Record tool patterns, collect bugs, and get intelligent suggestions (with anti-poisoning guardrails)
+- **User Memory** - Per-user persistent memories scoped by backend-provided user ID
 - **MCP Integration** - Native support for stdio, SSE, and HTTP transports via Neuron's MCP connector
-- **Auto-Learning** - Record tool patterns, collect bugs, and get intelligent suggestions
-- **Zero Dependencies** - Beyond Neuron AI, no external packages required
+- **Security First** - Encrypted config, sensitive data redaction, MCP command allowlist, PSR-3 logging
 
 ## Requirements
 
@@ -64,6 +65,9 @@ $config = new AssistantConfig(
     learningPath: '/path/to/learn',  // Learning data directory
     autoDelegate: true,              // Enable auto-delegation to sub-agents
     requireLearningCheck: true,      // Mandatory learning check before using tools
+    userId: $currentUser->getId(),   // Backend-provided user ID (for user memory)
+    userMemoryPath: '/path/to/memories', // User memory storage directory
+    logger: $psr3Logger,             // PSR-3 logger (optional)
 );
 ```
 
@@ -268,6 +272,48 @@ new AssistantConfig(
 )
 ```
 
+### Learning Guardrails
+
+The learning system has built-in protection against **knowledge base poisoning**:
+
+- The assistant **never** records learnings directly dictated by the user
+- Learnings must originate from the agent's own observations (tool results, error patterns, code analysis)
+- If the user suggests a learning, the agent evaluates it critically and only records independently verified observations
+- Instruction-like patterns such as "never use tool X" are detected and rejected by the `GuardsAgainstPoisoning` trait
+
+This ensures the learning system cannot be manipulated through social engineering.
+
+## User Memory
+
+Provide per-user persistent memories scoped by a backend-provided user ID:
+
+```php
+$assistant = Assistant::configure(
+    new AssistantConfig(
+        provider: new Anthropic('key', 'claude-sonnet-4'),
+        userId: $authenticatedUser->getId(),  // Backend-provided, never from user input
+        userMemoryPath: __DIR__ . '/storage/memories',
+    )
+);
+```
+
+### Memory Tools
+
+When `userId` and `userMemoryPath` are provided, the assistant gains 3 memory tools:
+
+| Tool | Purpose |
+|------|---------|
+| `save_memory` | Save a memory for the current user (category: preference, context, note, instruction) |
+| `recall_memories` | Search and retrieve memories for the current user |
+| `delete_memory` | Delete a specific memory by ID (ownership verified) |
+
+### Security Model
+
+- `userId` is injected by the backend via `AssistantConfig` — the LLM **cannot** change it
+- Storage is partitioned by user ID with path sanitization
+- `delete_memory` verifies ownership before deletion
+- One user cannot access or modify another user's memories
+
 ## Persistence
 
 Default file-based storage. Implement `StorageInterface` for custom backends (database, Redis, etc.):
@@ -308,6 +354,7 @@ Full architecture documentation is available in the `docs/` directory:
 - [API Reference](docs/09-api-reference.md)
 - [Examples](docs/10-examples.md)
 - [Development Guide](docs/11-development-guide.md)
+- [Security Audit](docs/12-security-audit.md)
 
 ## Testing
 

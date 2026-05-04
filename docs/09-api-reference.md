@@ -20,8 +20,14 @@ class Assistant extends \NeuronAI\Agent\Agent
     /** Get the skill registry */
     public function getSkillRegistry(): SkillRegistry;
     
+    /** Get the storage backend */
+    public function getStorage(): ?StorageInterface;
+    
     /** Get the auto-learning engine */
     public function getLearningEngine(): ?AutoLearningEngine;
+    
+    /** Get the user memory store */
+    public function getUserMemoryStore(): ?UserMemoryStoreInterface;
 }
 ```
 
@@ -43,10 +49,22 @@ class AssistantConfig
         public readonly ?string $storagePath = null,
         public readonly bool $autoLearn = false,
         public readonly ?string $learningPath = null,
+        public readonly bool $autoDelegate = true,
+        public readonly bool $requireLearningCheck = true,
         public readonly array $middleware = [],
+        public readonly ?LoggerInterface $logger = null,
+        public readonly ?string $userId = null,
+        public readonly ?string $userMemoryPath = null,
     ) {}
 }
 ```
+
+### Validation Rules
+
+- `contextWindow` must be at least 1000
+- `learningPath` is required when `autoLearn` is `true`
+- `userId` is required when `userMemoryPath` is provided
+- All `subAgents` entries must be `SubAgentConfig` instances
 
 ## Context Condenser
 
@@ -115,12 +133,15 @@ class SubAgentResult
 {
     public function __construct(
         public readonly Message $message,
-        public readonly AgentState $state,
+        public readonly WorkflowState $state,
         public readonly CondensedContext $context,
         public readonly array $toolCalls = [],
         public readonly int $tokenUsage = 0,
         public readonly float $duration = 0.0,
     ) {}
+    
+    public function getContent(): string;
+    public function getSteps(): array;
 }
 ```
 
@@ -167,21 +188,28 @@ class MarkdownSkillLoader
 ```php
 class McpConfigBridge
 {
-    public static function make(array $config): McpConnector;
+    public static function make(array $config, ?LoggerInterface $logger = null): McpConnector;
 }
 ```
 
 Configuration formats:
 ```php
-// stdio
-['type' => 'stdio', 'command' => 'php', 'args' => ['server.php']]
+// stdio — command is validated against an allowlist (npx, node, python3, python, uvx, docker, php)
+['type' => 'stdio', 'command' => 'npx', 'args' => ['@modelcontextprotocol/server-github']]
 
-// SSE
+// SSE — URL validated (no internal/metadata endpoints)
 ['type' => 'sse', 'url' => 'http://localhost:8080/sse', 'token' => 'optional']
 
 // HTTP
-['type' => 'http', 'url' => 'http://localhost:8080/mcp']
+['type' => 'http', 'url' => 'https://api.example.com/mcp']
 ```
+
+### Security Features
+
+- Command allowlist for stdio (only known binaries allowed)
+- Argument validation (no path traversal, no shell metacharacters)
+- URL validation (http/https only, warns on internal addresses)
+- PSR-3 logging of all connection attempts
 
 ## Auto-Learning
 
@@ -209,6 +237,59 @@ class SuggestionEngine
     public function getTips(string $taskDescription): array;
 }
 ```
+
+### Learning Guardrails
+
+The `GuardsAgainstPoisoning` trait is applied to `RecordLearningTool` and `RecordBugTool`. It detects instruction-like patterns (e.g., "never use X", "always skip Y") and refuses to record them, preventing knowledge base poisoning through user manipulation.
+
+## User Memory
+
+```php
+class UserMemory
+{
+    public function __construct(
+        public readonly string $id,
+        public readonly string $userId,
+        public readonly string $category,
+        public readonly string $content,
+        public readonly array $tags = [],
+        public readonly \DateTimeImmutable $createdAt = new \DateTimeImmutable(),
+        public readonly ?\DateTimeImmutable $updatedAt = null,
+    ) {}
+    
+    public function matches(string $query): float;
+}
+
+interface UserMemoryStoreInterface
+{
+    public function save(UserMemory $memory): void;
+    public function get(string $userId, string $memoryId): ?UserMemory;
+    public function listForUser(string $userId, ?string $category = null): array;
+    public function search(string $userId, string $query): array;
+    public function delete(string $userId, string $memoryId): bool;
+    public function exists(string $userId, string $memoryId): bool;
+}
+
+class UserMemoryStore implements UserMemoryStoreInterface
+{
+    public function __construct(string $basePath);
+}
+```
+
+### Memory Tools
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `save_memory` | category, content, tags? | Save a memory (categories: preference, context, note, instruction) |
+| `recall_memories` | query, category? | Search memories by query and optional category |
+| `delete_memory` | memory_id | Delete a memory (ownership verified) |
+
+### Security Model
+
+- `userId` is injected via `AssistantConfig` by the backend — never from user messages
+- Storage is partitioned by sanitized user ID (`storage/memories/{userId}/`)
+- `delete_memory` verifies `memory->userId === $this->userId` before deletion
+- Files are created with `chmod 0600`
 
 ## Persistence
 
@@ -249,3 +330,46 @@ class HierarchicalChatHistory extends AbstractChatHistory
     public function extractFacts(): void;
 }
 ```
+
+## Utilities
+
+```php
+class SensitiveDataRedactor
+{
+    public function redact(string $text): string;
+    public function redactMessages(array $messages): array;
+    public static function redactString(string $text): string;
+}
+
+class TokenEstimator
+{
+    public function estimate(string $text): int;
+    public function estimateMessages(array $messages): int;
+}
+
+class ConfigStorage
+{
+    public function __construct(?string $path = null);
+    public function load(): array;
+    public function save(array $config): void;
+    public function get(string $key, mixed $default = null): mixed;
+    public function set(string $key, mixed $value): void;
+    public function exists(): bool;
+    public function isEncryptionAvailable(): bool;
+}
+```
+
+### Config Encryption
+
+Config files are encrypted with `sodium_crypto_secretbox()` when the `HL_AI_ENCRYPTION_KEY` environment variable is set. Without the variable, config is stored in plaintext (with a warning in the CLI example).
+
+## Logging
+
+```php
+class StderrLogger extends AbstractLogger
+{
+    public function __construct(string $prefix = 'ai-assistant');
+}
+```
+
+The library uses PSR-3 `LoggerInterface` throughout. Pass any PSR-3 logger (Monolog, etc.) via `AssistantConfig::$logger`. Without one, a `NullLogger` is used (no output).

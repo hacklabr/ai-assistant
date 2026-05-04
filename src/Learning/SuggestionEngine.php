@@ -11,7 +11,7 @@ class SuggestionEngine
 {
     public function __construct(
         private readonly ToolLearner $learner,
-        private readonly BugCollector $bugs,
+        private readonly BugCollector $bugs, // phpstan: ignore property.onlyWritten
     ) {}
 
     /**

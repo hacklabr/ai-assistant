@@ -5,27 +5,21 @@ declare(strict_types=1);
 namespace HackLab\AIAssistant\SubAgents;
 
 use HackLab\AIAssistant\Context\ContextCondenserInterface;
-use HackLab\AIAssistant\Context\Strategies\HierarchicalStrategy;
-use HackLab\AIAssistant\Skills\SkillRegistry;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Workflow\WorkflowState;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
-/**
- * Orchestrates delegation to sub-agents with context condensation.
- */
 class SubAgentDispatcher
 {
     public function __construct(
         private readonly SubAgentRegistry $registry,
         private readonly SubAgentFactory $factory,
         private readonly ContextCondenserInterface $condenser,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
-    /**
-     * Delegate a message to a sub-agent.
-     *
-     * @param Message[] $currentMessages
-     */
     public function delegate(
         string $subAgentId,
         UserMessage $message,
@@ -33,10 +27,8 @@ class SubAgentDispatcher
     ): SubAgentResult {
         $startTime = microtime(true);
 
-        // Get sub-agent config
         $config = $this->registry->get($subAgentId);
 
-        // Condense context, informing the condenser about the sub-agent's role
         $taskDescription = sprintf(
             "Task for sub-agent '%s' (%s): %s",
             $config->id,
@@ -51,16 +43,32 @@ class SubAgentDispatcher
             $config->contextStrategy
         );
 
-        // Create sub-agent with condensed history
+        $this->logger->info('Context condensed for sub-agent', [
+            'sub_agent' => $subAgentId,
+            'original_tokens' => $condensed->originalTokens,
+            'condensed_tokens' => $condensed->condensedTokens,
+            'strategy' => $condensed->strategy,
+            'reduction_pct' => $condensed->originalTokens > 0
+                ? round((1 - $condensed->condensedTokens / $condensed->originalTokens) * 100, 1)
+                : 0,
+        ]);
+
         $agent = $this->factory->createWithHistory($config, $condensed->toMessages());
 
-        // Execute
-        $state = $agent->chat($message)->run();
+        $handler = $agent->chat($message);
+        $state = $handler->run();
 
         $duration = microtime(true) - $startTime;
 
+        $this->logger->info('Sub-agent execution completed', [
+            'sub_agent' => $subAgentId,
+            'duration_s' => round($duration, 3),
+        ]);
+
+        $responseMessage = $handler->getMessage();
+
         return new SubAgentResult(
-            message: $state->getMessage(),
+            message: $responseMessage,
             state: $state,
             context: $condensed,
             tokenUsage: $this->estimateTokenUsage($state),
@@ -68,12 +76,13 @@ class SubAgentDispatcher
         );
     }
 
-    private function estimateTokenUsage(\NeuronAI\Agent\AgentState $state): int
+    private function estimateTokenUsage(WorkflowState $state): int
     {
-        // This is a rough estimate
         $total = 0;
-        foreach ($state->getSteps() as $message) {
-            $total += (int) ceil(strlen($message->getContent() ?? '') / 4);
+        foreach ($state->all() as $value) {
+            if (is_string($value)) {
+                $total += (int) ceil(strlen($value) / 4);
+            }
         }
         return $total;
     }

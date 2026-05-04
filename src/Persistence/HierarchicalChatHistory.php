@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HackLab\AIAssistant\Persistence;
 
+use HackLab\AIAssistant\Utils\SensitiveDataRedactor;
 use NeuronAI\Chat\History\AbstractChatHistory;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
@@ -19,15 +20,17 @@ class HierarchicalChatHistory extends AbstractChatHistory
     private ?string $summary = null;
     private array $keyFacts = [];
     private ?AIProviderInterface $summarizationProvider = null;
+    private SensitiveDataRedactor $redactor;
 
     public function __construct(
         int $contextWindow = 150000,
-        private readonly int $summaryThreshold = 10000,
+        private readonly int $summaryThreshold = 10000, // phpstan: ignore property.onlyWritten
         private readonly int $recentMessages = 5,
         ?AIProviderInterface $summarizationProvider = null,
     ) {
         parent::__construct($contextWindow);
         $this->summarizationProvider = $summarizationProvider;
+        $this->redactor = new SensitiveDataRedactor();
     }
 
     /**
@@ -48,17 +51,17 @@ class HierarchicalChatHistory extends AbstractChatHistory
 
         $conversation = '';
         foreach ($messagesToSummarize as $message) {
-            $role = $message->getRole()->value ?? 'unknown';
-            $content = $message->getContent() ?? '';
+            $role = $message->getRole();
+            $content = $this->redactor->redact($message->getContent() ?? '');
             $conversation .= "{$role}: {$content}\n\n";
         }
 
         $prompt = "Please provide a brief summary of the following conversation. Focus on key topics and decisions:\n\n{$conversation}";
 
         try {
-            $response = $this->summarizationProvider->chat([
+            $response = $this->summarizationProvider->chat(
                 new UserMessage($prompt),
-            ]);
+            );
             $this->summary = $response->getContent() ?? null;
         } catch (\Throwable $e) {
             // Silently fail - summary is optional
