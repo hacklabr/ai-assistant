@@ -4,14 +4,9 @@ declare(strict_types=1);
 
 namespace HackLab\AIAssistant\Utils;
 
-/**
- * Lightweight Markdown parser for extracting content.
- */
 class MarkdownParser
 {
     /**
-     * Extract YAML frontmatter from markdown content.
-     *
      * @return array{frontmatter: array<string, mixed>, body: string}
      */
     public function parse(string $content): array
@@ -19,11 +14,10 @@ class MarkdownParser
         $frontmatter = [];
         $body = $content;
 
-        // Check for YAML frontmatter (--- at start)
         if (str_starts_with(trim($content), '---')) {
             $parts = preg_split('/\n---\s*\n/', $content, 2);
             if ($parts !== false && count($parts) >= 2) {
-                $yamlContent = substr($parts[0], 3); // Remove leading ---
+                $yamlContent = substr($parts[0], 3);
                 $frontmatter = $this->parseYaml($yamlContent);
                 $body = $parts[1];
             }
@@ -36,8 +30,6 @@ class MarkdownParser
     }
 
     /**
-     * Simple YAML parser for frontmatter.
-     *
      * @return array<string, mixed>
      */
     private function parseYaml(string $yaml): array
@@ -55,17 +47,14 @@ class MarkdownParser
                 continue;
             }
 
-            // List item
             if (str_starts_with($trimmed, '- ')) {
                 $item = trim(substr($trimmed, 2));
-                // Remove quotes if present
                 $item = $this->unquote($item);
                 $currentList[] = $item;
                 $inList = true;
                 continue;
             }
 
-            // If we were in a list and now hit a key, save the list
             if ($inList && $currentKey !== null && str_contains($trimmed, ':')) {
                 $result[$currentKey] = $currentList;
                 $currentList = [];
@@ -73,14 +62,12 @@ class MarkdownParser
                 $currentKey = null;
             }
 
-            // Key-value pair
             if (str_contains($trimmed, ':')) {
                 $colonPos = strpos($trimmed, ':');
                 $key = trim(substr($trimmed, 0, $colonPos));
                 $value = trim(substr($trimmed, $colonPos + 1));
 
                 if ($value === '') {
-                    // Might be a list starting next line
                     $currentKey = $key;
                     $currentList = [];
                 } else {
@@ -89,7 +76,6 @@ class MarkdownParser
             }
         }
 
-        // Save any remaining list
         if ($inList && $currentKey !== null) {
             $result[$currentKey] = $currentList;
         }
@@ -101,7 +87,6 @@ class MarkdownParser
     {
         $value = $this->unquote($value);
 
-        // Boolean
         if ($value === 'true') {
             return true;
         }
@@ -109,17 +94,14 @@ class MarkdownParser
             return false;
         }
 
-        // Null
         if ($value === 'null' || $value === '~') {
             return null;
         }
 
-        // Integer
         if (preg_match('/^-?\d+$/', $value)) {
             return (int) $value;
         }
 
-        // Float
         if (preg_match('/^-?\d+\.\d+$/', $value)) {
             return (float) $value;
         }

@@ -30,6 +30,29 @@ trait GuardsAgainstPoisoning
         return false;
     }
 
+    private const array DELETION_PATTERNS = [
+        '/\bforget\s+(all|every|everything|about)\b/i',
+        '/\berase\s+(all|every|everything)\b/i',
+        '/\bdelete\s+(all|every|everything)\b/i',
+        '/\bremove\s+(all|every|everything)\b/i',
+        '/\bwipe\s+(all|every|everything|the)\b/i',
+        '/\bclean\s+(out|up|away)\b.*\b(learning|knowledge|memory)\b/i',
+        '/\bclear\s+(all|every|the|entire)\b/i',
+        '/\bnuke\b/i',
+        '/\bpurge\b/i',
+    ];
+
+    private function isSuspectedDeletion(string $text): bool
+    {
+        foreach (self::DELETION_PATTERNS as $pattern) {
+            if (preg_match($pattern, $text)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function poisoningRefusalMessage(): string
     {
         return "Refused: This observation resembles a direct instruction rather than an independent finding. "

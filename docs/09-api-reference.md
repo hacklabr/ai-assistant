@@ -21,13 +21,13 @@ class Assistant extends \NeuronAI\Agent\Agent
     public function getSkillRegistry(): SkillRegistry;
     
     /** Get the storage backend */
-    public function getStorage(): ?StorageInterface;
+    public function getStorage(): StorageInterface;
     
     /** Get the auto-learning engine */
     public function getLearningEngine(): ?AutoLearningEngine;
     
     /** Get the user memory store */
-    public function getUserMemoryStore(): ?UserMemoryStoreInterface;
+    public function getUserMemoryStore(): ?UserMemoryStore;
 }
 ```
 
@@ -38,6 +38,7 @@ class AssistantConfig
 {
     public function __construct(
         public readonly AIProviderInterface $provider,
+        public readonly StorageInterface $storage,
         public readonly string $instructions = '',
         public readonly int $contextWindow = 200000,
         public readonly array $tools = [],
@@ -45,16 +46,12 @@ class AssistantConfig
         public readonly array $skills = [],
         public readonly array $mcps = [],
         public readonly ?string $skillsPath = null,
-        public readonly ?StorageInterface $storage = null,
-        public readonly ?string $storagePath = null,
         public readonly bool $autoLearn = false,
-        public readonly ?string $learningPath = null,
         public readonly bool $autoDelegate = true,
         public readonly bool $requireLearningCheck = true,
         public readonly array $middleware = [],
         public readonly ?LoggerInterface $logger = null,
         public readonly ?string $userId = null,
-        public readonly ?string $userMemoryPath = null,
     ) {}
 }
 ```
@@ -62,8 +59,6 @@ class AssistantConfig
 ### Validation Rules
 
 - `contextWindow` must be at least 1000
-- `learningPath` is required when `autoLearn` is `true`
-- `userId` is required when `userMemoryPath` is provided
 - All `subAgents` entries must be `SubAgentConfig` instances
 
 ## Context Condenser
@@ -240,7 +235,7 @@ class SuggestionEngine
 
 ### Learning Guardrails
 
-The `GuardsAgainstPoisoning` trait is applied to `RecordLearningTool` and `RecordBugTool`. It detects instruction-like patterns (e.g., "never use X", "always skip Y") and refuses to record them, preventing knowledge base poisoning through user manipulation.
+The `GuardsAgainstPoisoning` trait is applied to `RecordLearningTool`, `RecordBugTool`, and `ForgetLearningTool`. It detects instruction-like patterns (e.g., "never use X", "always skip Y") and refuses to record/delete them, preventing knowledge base poisoning through user manipulation.
 
 ## User Memory
 
@@ -258,21 +253,19 @@ class UserMemory
     ) {}
     
     public function matches(string $query): float;
+    public function toArray(): array;
+    public static function fromArray(array $data): self;
 }
 
-interface UserMemoryStoreInterface
+class UserMemoryStore
 {
+    public function __construct(StorageInterface $storage);
     public function save(UserMemory $memory): void;
     public function get(string $userId, string $memoryId): ?UserMemory;
     public function listForUser(string $userId, ?string $category = null): array;
     public function search(string $userId, string $query): array;
     public function delete(string $userId, string $memoryId): bool;
     public function exists(string $userId, string $memoryId): bool;
-}
-
-class UserMemoryStore implements UserMemoryStoreInterface
-{
-    public function __construct(string $basePath);
 }
 ```
 
@@ -287,34 +280,49 @@ class UserMemoryStore implements UserMemoryStoreInterface
 ### Security Model
 
 - `userId` is injected via `AssistantConfig` by the backend — never from user messages
-- Storage is partitioned by sanitized user ID (`storage/memories/{userId}/`)
+- Storage is partitioned by sanitized user ID via namespace (`memories/{userId}`)
 - `delete_memory` verifies `memory->userId === $this->userId` before deletion
-- Files are created with `chmod 0600`
 
 ## Persistence
 
 ```php
 interface StorageInterface
 {
-    public function save(string $key, array $data): void;
-    public function load(string $key): ?array;
-    public function delete(string $key): void;
-    public function list(string $pattern = '*'): array;
-    public function exists(string $key): bool;
-}
-
-interface ConversationStorageInterface extends StorageInterface
-{
-    public function saveThread(string $threadId, array $messages): void;
-    public function loadThread(string $threadId): array;
-    public function appendToThread(string $threadId, array $messages): void;
-    public function listThreads(): array;
-    public function deleteThread(string $threadId): void;
+    public function save(string $namespace, string $key, array $data): void;
+    public function load(string $namespace, string $key): ?array;
+    public function delete(string $namespace, string $key): bool;
+    public function exists(string $namespace, string $key): bool;
+    
+    /**
+     * @return string[]
+     */
+    public function list(string $namespace, string $pattern = '*'): array;
+    
+    /**
+     * @return array{data: array, score: float}[]
+     */
+    public function search(string $namespace, string $query, int $limit = 10): array;
+    
+    /**
+     * @param array{max_age_days?: int, max_per_namespace?: int} $criteria
+     * @return int Number of entries removed
+     */
+    public function cleanup(string $namespace, array $criteria = []): int;
 }
 
 class FileStorage implements StorageInterface
 {
     public function __construct(string $basePath);
+}
+
+class ConversationStore
+{
+    public function __construct(StorageInterface $storage);
+    public function saveThread(string $threadId, array $messages): void;
+    public function loadThread(string $threadId): array;
+    public function appendToThread(string $threadId, array $messages): void;
+    public function listThreads(): array;
+    public function deleteThread(string $threadId): bool;
 }
 
 class HierarchicalChatHistory extends AbstractChatHistory
@@ -328,6 +336,81 @@ class HierarchicalChatHistory extends AbstractChatHistory
     
     public function summarize(): void;
     public function extractFacts(): void;
+}
+```
+
+## Learning Storage
+
+```php
+class KnowledgeBase
+{
+    public function __construct(StorageInterface $storage);
+    
+    public function saveToolPattern(ToolPattern $pattern): void;
+    public function getToolPatterns(string $toolName): array;
+    public function getToolNames(): array;
+    public function searchPatterns(string $query): array;
+    
+    public function saveBug(BugReport $bug): string;
+    public function getBug(string $id): ?BugReport;
+    public function searchBugs(array $criteria): array;
+    
+    public function saveLearning(LearningEntry $entry): void;
+    public function getLearnings(string $context): array;
+    public function searchLearnings(string $query): array;
+    public function getContexts(): array;
+    public function deleteLearning(string $context, string $id): bool;
+    
+    public function cleanup(): int;
+}
+
+class LearningEntry
+{
+    public function __construct(
+        public readonly string $context,
+        public readonly string $observation,
+        public readonly bool $workedWell,
+        public readonly array $tags = [],
+        public readonly ?string $id = null,
+        public readonly \DateTimeImmutable $timestamp = new \DateTimeImmutable(),
+    ) {}
+    
+    public function matches(string $query): float;
+    public function toArray(): array;
+    public static function fromArray(array $data): self;
+}
+
+class ToolPattern
+{
+    public function __construct(
+        public readonly string $toolName,
+        public readonly array $arguments,
+        public readonly mixed $result,
+        public readonly ?string $error = null,
+        public readonly array $context = [],
+        public readonly \DateTimeImmutable $timestamp = new \DateTimeImmutable(),
+    ) {}
+    
+    public function matches(string $taskDescription): float;
+    public function toArray(): array;
+    public static function fromArray(array $data): self;
+}
+
+class BugReport
+{
+    public function __construct(
+        public readonly string $id,
+        public readonly string $errorType,
+        public readonly string $errorMessage,
+        public readonly string $stackTrace,
+        public readonly array $context,
+        public readonly \DateTimeImmutable $timestamp,
+        public readonly ?string $resolution = null,
+        public readonly bool $resolved = false,
+    ) {}
+    
+    public function toArray(): array;
+    public static function fromArray(array $data): self;
 }
 ```
 

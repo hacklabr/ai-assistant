@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace HackLab\AIAssistant\Persistence;
 
-/**
- * File-based storage implementation using JSON for structured data.
- */
-class FileStorage implements StorageInterface, ConversationStorageInterface
+class FileStorage implements StorageInterface
 {
     public function __construct(
         private readonly string $basePath,
@@ -15,18 +12,18 @@ class FileStorage implements StorageInterface, ConversationStorageInterface
         $this->ensureDirectoryExists($basePath);
     }
 
-    public function save(string $key, array $data): void
+    public function save(string $namespace, string $key, array $data): void
     {
-        $path = $this->getPath($key);
+        $path = $this->getPath($namespace, $key);
         $this->ensureDirectoryExists(dirname($path));
 
         $content = json_encode($data, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
         file_put_contents($path, $content, LOCK_EX);
     }
 
-    public function load(string $key): ?array
+    public function load(string $namespace, string $key): ?array
     {
-        $path = $this->getPath($key);
+        $path = $this->getPath($namespace, $key);
 
         if (!file_exists($path)) {
             return null;
@@ -44,86 +41,149 @@ class FileStorage implements StorageInterface, ConversationStorageInterface
         }
     }
 
-    public function delete(string $key): void
+    public function delete(string $namespace, string $key): bool
     {
-        $path = $this->getPath($key);
+        $path = $this->getPath($namespace, $key);
         if (file_exists($path)) {
             unlink($path);
+            return true;
         }
+        return false;
     }
 
-    public function list(string $pattern = '*'): array
+    public function exists(string $namespace, string $key): bool
     {
-        $pattern = str_replace(['*', '/'], ['', DIRECTORY_SEPARATOR], $pattern);
-        $searchPath = $this->basePath . DIRECTORY_SEPARATOR . $pattern;
+        return file_exists($this->getPath($namespace, $key));
+    }
 
-        $files = glob($searchPath . '*.json');
+    public function list(string $namespace, string $pattern = '*'): array
+    {
+        $dir = $this->getNamespacePath($namespace);
+
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $safePattern = preg_replace('/[^a-zA-Z0-9_*\-]/', '_', $pattern);
+        $globPattern = $dir . DIRECTORY_SEPARATOR . $safePattern . '.json';
+
+        $files = glob($globPattern);
         if ($files === false) {
             return [];
         }
 
-        return array_map(fn (string $file) => basename($file, '.json'), $files);
+        return array_map(fn(string $file) => basename($file, '.json'), $files);
     }
 
-    public function exists(string $key): bool
+    public function search(string $namespace, string $query, int $limit = 10): array
     {
-        return file_exists($this->getPath($key));
-    }
+        $dir = $this->getNamespacePath($namespace);
 
-    public function saveThread(string $threadId, array $messages): void
-    {
-        $this->save("conversations/{$threadId}", [
-            'thread_id' => $threadId,
-            'created_at' => date('c'),
-            'updated_at' => date('c'),
-            'messages' => $messages,
-        ]);
-    }
-
-    public function loadThread(string $threadId): array
-    {
-        $data = $this->load("conversations/{$threadId}");
-        return $data['messages'] ?? [];
-    }
-
-    public function appendToThread(string $threadId, array $messages): void
-    {
-        $data = $this->load("conversations/{$threadId}");
-        $existingMessages = $data['messages'] ?? [];
-        $allMessages = array_merge($existingMessages, $messages);
-
-        $this->save("conversations/{$threadId}", [
-            'thread_id' => $threadId,
-            'created_at' => $data['created_at'] ?? date('c'),
-            'updated_at' => date('c'),
-            'messages' => $allMessages,
-        ]);
-    }
-
-    public function listThreads(): array
-    {
-        $path = $this->basePath . DIRECTORY_SEPARATOR . 'conversations';
-        if (!is_dir($path)) {
+        if (!is_dir($dir)) {
             return [];
         }
 
-        $files = glob($path . DIRECTORY_SEPARATOR . '*.json');
+        $files = glob($dir . DIRECTORY_SEPARATOR . '*.json');
         if ($files === false) {
             return [];
         }
 
-        return array_map(fn (string $file) => basename($file, '.json'), $files);
+        $results = [];
+        $queryLower = strtolower($query);
+        $queryWords = str_word_count($queryLower, 1);
+
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            if ($content === false) {
+                continue;
+            }
+
+            try {
+                $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                continue;
+            }
+
+            if (!is_array($data)) {
+                continue;
+            }
+
+            $textLower = strtolower(json_encode($data));
+            $score = 0.0;
+
+            if (str_contains($textLower, $queryLower)) {
+                $score = 1.0;
+            } elseif (!empty($queryWords)) {
+                $textWords = str_word_count($textLower, 1);
+                $matches = count(array_intersect($queryWords, $textWords));
+                $score = $matches / count($queryWords);
+            }
+
+            if ($score > 0.1) {
+                $results[] = ['data' => $data, 'score' => $score];
+            }
+        }
+
+        usort($results, fn(array $a, array $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($results, 0, $limit);
     }
 
-    public function deleteThread(string $threadId): void
+    public function cleanup(string $namespace, array $criteria = []): int
     {
-        $this->delete("conversations/{$threadId}");
+        $removed = 0;
+        $dir = $this->getNamespacePath($namespace);
+
+        if (!is_dir($dir)) {
+            return 0;
+        }
+
+        $files = glob($dir . DIRECTORY_SEPARATOR . '*.json');
+        if ($files === false) {
+            return 0;
+        }
+
+        if (isset($criteria['max_age_days'])) {
+            $threshold = time() - ($criteria['max_age_days'] * 86400);
+
+            foreach ($files as $file) {
+                if (filemtime($file) < $threshold) {
+                    unlink($file);
+                    $removed++;
+                }
+            }
+
+            $files = glob($dir . DIRECTORY_SEPARATOR . '*.json');
+            if ($files === false) {
+                return $removed;
+            }
+        }
+
+        if (isset($criteria['max_per_namespace']) && count($files) > $criteria['max_per_namespace']) {
+            usort($files, fn(string $a, string $b) => filemtime($b) <=> filemtime($a));
+
+            $toRemove = array_slice($files, $criteria['max_per_namespace']);
+            foreach ($toRemove as $file) {
+                unlink($file);
+                $removed++;
+            }
+        }
+
+        return $removed;
     }
 
-    private function getPath(string $key): string
+    private function getPath(string $namespace, string $key): string
     {
-        $safeKey = preg_replace('/[^a-zA-Z0-9_-]/', '_', $key);
-        return $this->basePath . DIRECTORY_SEPARATOR . $safeKey . '.json';
+        $safeNamespace = preg_replace('/[^a-zA-Z0-9_\-\/]/', '_', $namespace);
+        $safeKey = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $key);
+
+        return $this->basePath . DIRECTORY_SEPARATOR . $safeNamespace . DIRECTORY_SEPARATOR . $safeKey . '.json';
+    }
+
+    private function getNamespacePath(string $namespace): string
+    {
+        $safeNamespace = preg_replace('/[^a-zA-Z0-9_\-\/]/', '_', $namespace);
+        return $this->basePath . DIRECTORY_SEPARATOR . $safeNamespace;
     }
 
     private function ensureDirectoryExists(string $path): void

@@ -6,30 +6,27 @@ namespace HackLab\AIAssistant\Persistence;
 
 interface StorageInterface
 {
-    /**
-     * Save data to storage.
-     */
-    public function save(string $key, array $data): void;
+    public function save(string $namespace, string $key, array $data): void;
+
+    public function load(string $namespace, string $key): ?array;
+
+    public function delete(string $namespace, string $key): bool;
+
+    public function exists(string $namespace, string $key): bool;
 
     /**
-     * Load data from storage.
-     */
-    public function load(string $key): ?array;
-
-    /**
-     * Delete data from storage.
-     */
-    public function delete(string $key): void;
-
-    /**
-     * List keys matching a pattern.
-     *
      * @return string[]
      */
-    public function list(string $pattern = '*'): array;
+    public function list(string $namespace, string $pattern = '*'): array;
 
     /**
-     * Check if key exists.
+     * @return array{data: array, score: float}[]
      */
-    public function exists(string $key): bool;
+    public function search(string $namespace, string $query, int $limit = 10): array;
+
+    /**
+     * @param array{max_age_days?: int, max_per_namespace?: int} $criteria
+     * @return int Number of entries removed
+     */
+    public function cleanup(string $namespace, array $criteria = []): int;
 }

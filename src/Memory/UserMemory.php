@@ -38,4 +38,30 @@ class UserMemory
         $matches = count(array_intersect($queryWords, $textWords));
         return $matches / count($queryWords);
     }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'userId' => $this->userId,
+            'category' => $this->category,
+            'content' => $this->content,
+            'tags' => $this->tags,
+            'createdAt' => $this->createdAt->format('c'),
+            'updatedAt' => $this->updatedAt?->format('c'),
+        ];
+    }
+
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            id: $data['id'] ?? '',
+            userId: $data['userId'] ?? '',
+            category: $data['category'] ?? 'note',
+            content: $data['content'] ?? '',
+            tags: $data['tags'] ?? [],
+            createdAt: new \DateTimeImmutable($data['createdAt'] ?? 'now'),
+            updatedAt: isset($data['updatedAt']) ? new \DateTimeImmutable($data['updatedAt']) : null,
+        );
+    }
 }

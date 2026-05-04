@@ -31,7 +31,6 @@ class LearningEntry
             return 1.0;
         }
 
-        // Simple word overlap scoring
         $queryWords = str_word_count($queryLower, 1);
         $textWords = str_word_count($text, 1);
 
@@ -41,5 +40,29 @@ class LearningEntry
 
         $matches = count(array_intersect($queryWords, $textWords));
         return $matches / count($queryWords);
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'context' => $this->context,
+            'observation' => $this->observation,
+            'workedWell' => $this->workedWell,
+            'tags' => $this->tags,
+            'timestamp' => $this->timestamp->format('c'),
+        ];
+    }
+
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            context: $data['context'] ?? 'unknown',
+            observation: $data['observation'] ?? '',
+            workedWell: $data['workedWell'] ?? false,
+            tags: $data['tags'] ?? [],
+            id: $data['id'] ?? null,
+            timestamp: new \DateTimeImmutable($data['timestamp'] ?? 'now'),
+        );
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace HackLab\AIAssistant\Learning;
 
-use HackLab\AIAssistant\Learning\Storage\LearningStorageInterface;
+use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
 use HackLab\AIAssistant\Learning\Storage\ToolPattern;
 use NeuronAI\Tools\ToolInterface;
 
@@ -14,7 +14,7 @@ use NeuronAI\Tools\ToolInterface;
 class ToolLearner
 {
     public function __construct(
-        private readonly LearningStorageInterface $storage,
+        private readonly KnowledgeBase $storage,
     ) {}
 
     /**

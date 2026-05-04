@@ -52,4 +52,28 @@ class ToolPattern
 
         return min(1.0, $score);
     }
+
+    public function toArray(): array
+    {
+        return [
+            'toolName' => $this->toolName,
+            'arguments' => $this->arguments,
+            'result' => $this->result,
+            'error' => $this->error,
+            'context' => $this->context,
+            'timestamp' => $this->timestamp->format('c'),
+        ];
+    }
+
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            toolName: $data['toolName'] ?? 'unknown',
+            arguments: $data['arguments'] ?? [],
+            result: $data['result'] ?? null,
+            error: $data['error'] ?? null,
+            context: $data['context'] ?? [],
+            timestamp: new \DateTimeImmutable($data['timestamp'] ?? 'now'),
+        );
+    }
 }

@@ -13,6 +13,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use HackLab\AIAssistant\Assistant;
 use HackLab\AIAssistant\AssistantConfig;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\SubAgents\SubAgentConfig;
 use HackLab\AIAssistant\Utils\ConfigStorage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -167,11 +168,10 @@ $provider = match ($providerKey) {
 $assistant = Assistant::configure(
     new AssistantConfig(
         provider: $provider,
+        storage: new FileStorage(__DIR__ . '/../storage'),
         instructions: 'You are a helpful coding assistant. You have access to specialized sub-agents and a learning system. Delegate tasks that require specific expertise. Record learnings when you discover useful patterns or bugs.',
         skillsPath: __DIR__ . '/../skills',
-        storagePath: __DIR__ . '/../storage',
         autoLearn: true,
-        learningPath: __DIR__ . '/../storage/learning',
         subAgents: [
             'code-reviewer' => new SubAgentConfig(
                 id: 'code-reviewer',

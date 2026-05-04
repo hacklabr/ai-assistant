@@ -28,6 +28,7 @@ composer require hacklab/ai-assistant
 ```php
 use HackLab\AIAssistant\Assistant;
 use HackLab\AIAssistant\AssistantConfig;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
 
@@ -37,6 +38,7 @@ $assistant = Assistant::configure(
             key: 'your-api-key',
             model: 'claude-sonnet-4',
         ),
+        storage: new FileStorage(__DIR__ . '/storage'),
         instructions: 'You are a helpful coding assistant.',
     )
 );
@@ -51,24 +53,46 @@ echo $response->getMessage()->getContent();
 
 ```php
 use HackLab\AIAssistant\AssistantConfig;
+use HackLab\AIAssistant\Persistence\FileStorage;
 
 $config = new AssistantConfig(
-    provider: $aiProvider,           // Neuron AIProviderInterface
+    provider: $aiProvider,           // Neuron AIProviderInterface (required)
+    storage: new FileStorage('/path/to/storage'), // StorageInterface (required)
     instructions: 'System prompt',   // Base instructions
     contextWindow: 200000,           // Token limit (default: 200000)
     tools: [],                       // Array of Tool classes/instances
     subAgents: [],                   // Sub-agent configurations
     skills: [],                      // Skill names to load
     skillsPath: '/path/to/skills',   // Directory containing .md skill files
-    storagePath: '/path/to/storage', // Data storage directory
     autoLearn: false,                // Enable auto-learning
-    learningPath: '/path/to/learn',  // Learning data directory
     autoDelegate: true,              // Enable auto-delegation to sub-agents
     requireLearningCheck: true,      // Mandatory learning check before using tools
     userId: $currentUser->getId(),   // Backend-provided user ID (for user memory)
-    userMemoryPath: '/path/to/memories', // User memory storage directory
     logger: $psr3Logger,             // PSR-3 logger (optional)
 );
+```
+
+### Custom Storage Backends
+
+Implement `StorageInterface` for custom backends (database, Redis, etc.):
+
+```php
+use HackLab\AIAssistant\Persistence\StorageInterface;
+
+class RedisStorage implements StorageInterface {
+    public function save(string $namespace, string $key, array $data): void { /* ... */ }
+    public function load(string $namespace, string $key): ?array { /* ... */ }
+    public function delete(string $namespace, string $key): bool { /* ... */ }
+    public function exists(string $namespace, string $key): bool { /* ... */ }
+    public function list(string $namespace, string $pattern = '*'): array { /* ... */ }
+    public function search(string $namespace, string $query, int $limit = 10): array { /* ... */ }
+    public function cleanup(string $namespace, array $criteria = []): int { /* ... */ }
+}
+
+new AssistantConfig(
+    provider: $provider,
+    storage: new RedisStorage($redis),
+)
 ```
 
 ### Supported AI Providers
@@ -136,6 +160,7 @@ use HackLab\AIAssistant\SubAgents\SubAgentConfig;
 $assistant = Assistant::configure(
     new AssistantConfig(
         provider: new Anthropic('key', 'claude-sonnet-4'),
+        storage: new FileStorage(__DIR__ . '/storage'),
         subAgents: [
             'code-reviewer' => new SubAgentConfig(
                 id: 'code-reviewer',
@@ -202,6 +227,8 @@ Load skills from a directory:
 
 ```php
 new AssistantConfig(
+    provider: $provider,
+    storage: $storage,
     skillsPath: __DIR__ . '/skills',
     skills: ['security'],  // Reference by name
 )
@@ -228,15 +255,16 @@ Enable to record tool usage patterns, collect bugs, and build contextual knowled
 
 ```php
 new AssistantConfig(
+    provider: $provider,
+    storage: new FileStorage(__DIR__ . '/storage'),
     autoLearn: true,
-    learningPath: __DIR__ . '/storage/learning',
     requireLearningCheck: true,  // Default: mandatory check before using tools
 )
 ```
 
 ### Learning Tools
 
-When auto-learning is enabled, the assistant gains access to 4 contextual learning tools:
+When auto-learning is enabled, the assistant gains access to 5 contextual learning tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -244,6 +272,7 @@ When auto-learning is enabled, the assistant gains access to 4 contextual learni
 | `get_context_insights` | Retrieve recorded learnings, patterns, and known issues |
 | `record_bug` | Document a bug or error with optional workaround |
 | `find_similar_issues` | Search for known issues before attempting an approach |
+| `forget_learning` | Remove a learning entry (with anti-poisoning guardrails) |
 
 ### Contextual Organization
 
@@ -268,6 +297,8 @@ When `requireLearningCheck: true` (default), the assistant is instructed to **co
 To disable:
 ```php
 new AssistantConfig(
+    provider: $provider,
+    storage: $storage,
     requireLearningCheck: false,  // Skip mandatory checks
 )
 ```
@@ -280,6 +311,7 @@ The learning system has built-in protection against **knowledge base poisoning**
 - Learnings must originate from the agent's own observations (tool results, error patterns, code analysis)
 - If the user suggests a learning, the agent evaluates it critically and only records independently verified observations
 - Instruction-like patterns such as "never use tool X" are detected and rejected by the `GuardsAgainstPoisoning` trait
+- Deletion requests are also guarded against bulk manipulation patterns (`forget all`, `purge`, etc.)
 
 This ensures the learning system cannot be manipulated through social engineering.
 
@@ -291,15 +323,15 @@ Provide per-user persistent memories scoped by a backend-provided user ID:
 $assistant = Assistant::configure(
     new AssistantConfig(
         provider: new Anthropic('key', 'claude-sonnet-4'),
+        storage: new FileStorage(__DIR__ . '/storage'),
         userId: $authenticatedUser->getId(),  // Backend-provided, never from user input
-        userMemoryPath: __DIR__ . '/storage/memories',
     )
 );
 ```
 
 ### Memory Tools
 
-When `userId` and `userMemoryPath` are provided, the assistant gains 3 memory tools:
+When `userId` is provided, the assistant gains 3 memory tools:
 
 | Tool | Purpose |
 |------|---------|
@@ -310,25 +342,9 @@ When `userId` and `userMemoryPath` are provided, the assistant gains 3 memory to
 ### Security Model
 
 - `userId` is injected by the backend via `AssistantConfig` — the LLM **cannot** change it
-- Storage is partitioned by user ID with path sanitization
+- Storage is partitioned by user ID via namespace (`memories/{userId}`)
 - `delete_memory` verifies ownership before deletion
 - One user cannot access or modify another user's memories
-
-## Persistence
-
-Default file-based storage. Implement `StorageInterface` for custom backends (database, Redis, etc.):
-
-```php
-use HackLab\AIAssistant\Persistence\StorageInterface;
-
-class RedisStorage implements StorageInterface {
-    // ... implement save(), load(), delete(), list(), exists()
-}
-
-new AssistantConfig(
-    storage: new RedisStorage($redis),
-)
-```
 
 ## CLI Example
 

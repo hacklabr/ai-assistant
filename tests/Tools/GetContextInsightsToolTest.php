@@ -7,18 +7,19 @@ namespace HackLab\AIAssistant\Tests\Tools;
 use HackLab\AIAssistant\Learning\Storage\BugReport;
 use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
 use HackLab\AIAssistant\Learning\Storage\LearningEntry;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\Tools\GetContextInsightsTool;
 use PHPUnit\Framework\TestCase;
 
 class GetContextInsightsToolTest extends TestCase
 {
     private string $tempDir;
+    private FileStorage $storage;
 
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir() . '/hl-insights-test-' . uniqid();
-        mkdir($this->tempDir . '/learnings', 0755, true);
-        mkdir($this->tempDir . '/bugs', 0755, true);
+        $this->storage = new FileStorage($this->tempDir);
     }
 
     protected function tearDown(): void
@@ -39,23 +40,20 @@ class GetContextInsightsToolTest extends TestCase
 
     public function testReturnsLearningsAndBugs(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
 
-        // Add learning
         $kb->saveLearning(new LearningEntry(
             context: 'php',
             observation: 'Use prepared statements',
             workedWell: true,
         ));
 
-        // Add anti-pattern
         $kb->saveLearning(new LearningEntry(
             context: 'php',
             observation: 'Never use eval() on user input',
             workedWell: false,
         ));
 
-        // Add bug
         $kb->saveBug(new BugReport(
             id: 'bug-1',
             errorType: 'php',
@@ -77,7 +75,7 @@ class GetContextInsightsToolTest extends TestCase
 
     public function testReturnsNoInsightsWhenEmpty(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new GetContextInsightsTool($kb);
 
         $tool->setInputs(['context' => 'unknown']);

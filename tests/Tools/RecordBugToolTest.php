@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace HackLab\AIAssistant\Tests\Tools;
 
 use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\Tools\RecordBugTool;
 use PHPUnit\Framework\TestCase;
 
 class RecordBugToolTest extends TestCase
 {
     private string $tempDir;
+    private FileStorage $storage;
 
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir() . '/hl-bug-test-' . uniqid();
-        mkdir($this->tempDir . '/bugs', 0755, true);
+        $this->storage = new FileStorage($this->tempDir);
     }
 
     protected function tearDown(): void
@@ -36,7 +38,7 @@ class RecordBugToolTest extends TestCase
 
     public function testRecordsBug(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new RecordBugTool($kb);
 
         $tool->setInputs([
@@ -55,7 +57,7 @@ class RecordBugToolTest extends TestCase
 
     public function testRecordsBugWithWorkaround(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new RecordBugTool($kb);
 
         $tool->setInputs([

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace HackLab\AIAssistant\Learning;
 
 use HackLab\AIAssistant\Learning\Storage\BugReport;
-use HackLab\AIAssistant\Learning\Storage\LearningStorageInterface;
+use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
 
 /**
  * Collects and manages bug reports with full context.
@@ -13,7 +13,7 @@ use HackLab\AIAssistant\Learning\Storage\LearningStorageInterface;
 class BugCollector
 {
     public function __construct(
-        private readonly LearningStorageInterface $storage,
+        private readonly KnowledgeBase $storage,
     ) {}
 
     /**

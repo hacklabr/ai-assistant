@@ -6,17 +6,19 @@ namespace HackLab\AIAssistant\Tests\Tools;
 
 use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
 use HackLab\AIAssistant\Learning\Storage\LearningEntry;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\Tools\RecordLearningTool;
 use PHPUnit\Framework\TestCase;
 
 class RecordLearningToolTest extends TestCase
 {
     private string $tempDir;
+    private FileStorage $storage;
 
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir() . '/hl-learning-test-' . uniqid();
-        mkdir($this->tempDir . '/learnings', 0755, true);
+        $this->storage = new FileStorage($this->tempDir);
     }
 
     protected function tearDown(): void
@@ -37,7 +39,7 @@ class RecordLearningToolTest extends TestCase
 
     public function testRecordsSuccessfulPattern(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new RecordLearningTool($kb);
 
         $tool->setInputs([
@@ -57,7 +59,7 @@ class RecordLearningToolTest extends TestCase
 
     public function testRecordsAntiPattern(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new RecordLearningTool($kb);
 
         $tool->setInputs([
@@ -74,7 +76,7 @@ class RecordLearningToolTest extends TestCase
 
     public function testReturnsConfirmation(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new RecordLearningTool($kb);
 
         $tool->setInputs([

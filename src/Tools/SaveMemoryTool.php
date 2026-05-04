@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace HackLab\AIAssistant\Tools;
 
 use HackLab\AIAssistant\Memory\UserMemory;
-use HackLab\AIAssistant\Memory\UserMemoryStoreInterface;
+use HackLab\AIAssistant\Memory\UserMemoryStore;
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
@@ -13,7 +13,7 @@ use NeuronAI\Tools\ToolProperty;
 class SaveMemoryTool extends Tool
 {
     public function __construct(
-        private readonly UserMemoryStoreInterface $store,
+        private readonly UserMemoryStore $store,
         private readonly string $userId,
     ) {
         parent::__construct(

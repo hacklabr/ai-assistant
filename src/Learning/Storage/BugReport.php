@@ -19,4 +19,32 @@ class BugReport
         public readonly ?string $resolution = null,
         public readonly bool $resolved = false,
     ) {}
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'errorType' => $this->errorType,
+            'errorMessage' => $this->errorMessage,
+            'stackTrace' => $this->stackTrace,
+            'context' => $this->context,
+            'timestamp' => $this->timestamp->format('c'),
+            'resolution' => $this->resolution,
+            'resolved' => $this->resolved,
+        ];
+    }
+
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            id: $data['id'] ?? '',
+            errorType: $data['errorType'] ?? 'Unknown',
+            errorMessage: $data['errorMessage'] ?? '',
+            stackTrace: $data['stackTrace'] ?? '',
+            context: $data['context'] ?? [],
+            timestamp: new \DateTimeImmutable($data['timestamp'] ?? 'now'),
+            resolution: $data['resolution'] ?? null,
+            resolved: $data['resolved'] ?? false,
+        );
+    }
 }

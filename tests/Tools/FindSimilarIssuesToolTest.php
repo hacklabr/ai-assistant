@@ -6,18 +6,19 @@ namespace HackLab\AIAssistant\Tests\Tools;
 
 use HackLab\AIAssistant\Learning\Storage\KnowledgeBase;
 use HackLab\AIAssistant\Learning\Storage\LearningEntry;
+use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\Tools\FindSimilarIssuesTool;
 use PHPUnit\Framework\TestCase;
 
 class FindSimilarIssuesToolTest extends TestCase
 {
     private string $tempDir;
+    private FileStorage $storage;
 
     protected function setUp(): void
     {
         $this->tempDir = sys_get_temp_dir() . '/hl-similar-test-' . uniqid();
-        mkdir($this->tempDir . '/learnings', 0755, true);
-        mkdir($this->tempDir . '/bugs', 0755, true);
+        $this->storage = new FileStorage($this->tempDir);
     }
 
     protected function tearDown(): void
@@ -38,7 +39,7 @@ class FindSimilarIssuesToolTest extends TestCase
 
     public function testFindsAntiPattern(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
 
         $kb->saveLearning(new LearningEntry(
             context: 'database',
@@ -59,7 +60,7 @@ class FindSimilarIssuesToolTest extends TestCase
 
     public function testReturnsEmptyWhenNoIssues(): void
     {
-        $kb = new KnowledgeBase($this->tempDir);
+        $kb = new KnowledgeBase($this->storage);
         $tool = new FindSimilarIssuesTool($kb);
 
         $tool->setInputs([
