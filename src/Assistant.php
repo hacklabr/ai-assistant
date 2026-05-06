@@ -64,6 +64,10 @@ class Assistant extends Agent
         $this->logger = $config->logger ?? new NullLogger();
         $this->storage = $config->storage;
 
+        if ($config->requestTimeout !== null) {
+            $this->applyProviderTimeout($config->provider, $config->requestTimeout);
+        }
+
         $this->skillRegistry = new SkillRegistry($config->skillsPath);
         $this->skillRegistry->loadAll();
 
@@ -259,5 +263,21 @@ class Assistant extends Agent
     public function getUserMemoryStore(): ?UserMemoryStore
     {
         return $this->userMemoryStore;
+    }
+
+    private function applyProviderTimeout(AIProviderInterface $provider, float $timeout): void
+    {
+        if (!method_exists($provider, 'getHttpClient')) {
+            return;
+        }
+
+        try {
+            $provider->getHttpClient()->withTimeout($timeout);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Failed to set provider timeout', [
+                'timeout' => $timeout,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

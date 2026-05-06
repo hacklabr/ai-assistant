@@ -15,6 +15,7 @@ use HackLab\AIAssistant\Assistant;
 use HackLab\AIAssistant\AssistantConfig;
 use HackLab\AIAssistant\Persistence\FileStorage;
 use HackLab\AIAssistant\SubAgents\SubAgentConfig;
+use HackLab\AIAssistant\Tools\FileReader\FileReaderTool;
 use HackLab\AIAssistant\Utils\ConfigStorage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Providers\Anthropic\Anthropic;
@@ -169,9 +170,11 @@ $assistant = Assistant::configure(
     new AssistantConfig(
         provider: $provider,
         storage: new FileStorage(__DIR__ . '/../storage'),
-        instructions: 'You are a helpful coding assistant. You have access to specialized sub-agents and a learning system. Delegate tasks that require specific expertise. Record learnings when you discover useful patterns or bugs.',
+        instructions: 'You are a helpful coding assistant. You have access to specialized sub-agents and a learning system. Delegate tasks that require specific expertise. Record learnings when you discover useful patterns or bugs. When the user asks you to read or analyze a file, use the read_file tool.',
+        tools: [new FileReaderTool()],
         skillsPath: __DIR__ . '/../skills',
         autoLearn: true,
+        requestTimeout: 300.0,
         subAgents: [
             'code-reviewer' => new SubAgentConfig(
                 id: 'code-reviewer',

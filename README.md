@@ -7,6 +7,7 @@ An embeddable AI assistant framework for PHP built on top of [Neuron AI](https:/
 - **Context Condensation** - 4 strategies for intelligent context reduction before delegation
 - **Sub-Agent Orchestration** - Delegate tasks to specialized agents with automatically condensed context
 - **Skill System** - Configure reusable instruction modules via Markdown files with YAML frontmatter
+- **File Reading** - Built-in tool for reading PDF, DOCX, TXT, CSV, Markdown, and more
 - **Auto-Learning** - Record tool patterns, collect bugs, and get intelligent suggestions (with anti-poisoning guardrails)
 - **User Memory** - Per-user persistent memories scoped by backend-provided user ID
 - **MCP Integration** - Native support for stdio, SSE, and HTTP transports via Neuron's MCP connector
@@ -69,6 +70,7 @@ $config = new AssistantConfig(
     requireLearningCheck: true,      // Mandatory learning check before using tools
     userId: $currentUser->getId(),   // Backend-provided user ID (for user memory)
     logger: $psr3Logger,             // PSR-3 logger (optional)
+    requestTimeout: 120.0,           // HTTP client timeout in seconds (null = provider default: 60s)
 );
 ```
 
@@ -345,6 +347,36 @@ When `userId` is provided, the assistant gains 3 memory tools:
 - Storage is partitioned by user ID via namespace (`memories/{userId}`)
 - `delete_memory` verifies ownership before deletion
 - One user cannot access or modify another user's memories
+
+## File Reading
+
+Built-in tool for reading and extracting text from local documents:
+
+```php
+use HackLab\AIAssistant\Tools\FileReader\FileReaderTool;
+
+new AssistantConfig(
+    provider: $provider,
+    storage: $storage,
+    tools: [new FileReaderTool()],
+);
+```
+
+The assistant gains the `read_file` tool which accepts `file_path` (required) and `max_length` (optional, default 100k chars).
+
+### Supported Formats
+
+| Format | Extension | Dependency |
+|--------|-----------|------------|
+| PDF | `.pdf` | `smalot/pdfparser` (pure PHP) |
+| Word | `.docx` | `phpoffice/phpword` (pure PHP) |
+| Plain Text | `.txt` | Native |
+| CSV | `.csv` | Native |
+| Markdown | `.md` | Native |
+| HTML | `.html`, `.htm` | Native |
+| JSON | `.json` | Native |
+| XML | `.xml` | Native |
+| RTF | `.rtf` | Native |
 
 ## CLI Example
 

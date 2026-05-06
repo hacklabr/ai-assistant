@@ -38,7 +38,7 @@ An embeddable AI assistant framework built on top of Neuron AI, providing advanc
 
 ## Core Design Principles
 
-1. **Zero Additional Dependencies**: Beyond Neuron AI, no external packages. Pure PHP implementations for all features.
+1. **Zero Additional Dependencies**: Beyond Neuron AI, no external packages. Pure PHP implementations for all features. (Exception: `smalot/pdfparser` and `phpoffice/phpword` for document reading — both pure PHP with no server-side requirements.)
 
 2. **Neuron Native Integration**: All MCP transports (stdio, SSE, HTTP), middleware, tools, and workflows are Neuron-native. We only add abstraction layers for easier configuration.
 
@@ -77,3 +77,4 @@ An embeddable AI assistant framework built on top of Neuron AI, providing advanc
 | `AutoLearningEngine` | Tool learning + bug collection |
 | `HierarchicalChatHistory` | Multi-level memory (summary + recent + facts) |
 | `FileStorage` | Default persistence in .md + .json |
+| `FileReaderTool` | Document reading (PDF, DOCX, TXT, CSV, etc.) |

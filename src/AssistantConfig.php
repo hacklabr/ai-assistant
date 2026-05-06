@@ -34,6 +34,7 @@ class AssistantConfig
         public readonly array $middleware = [],
         public readonly ?LoggerInterface $logger = null,
         public readonly ?string $userId = null,
+        public readonly ?float $requestTimeout = null,
     ) {
         $this->validate();
     }
@@ -42,6 +43,10 @@ class AssistantConfig
     {
         if ($this->contextWindow < 1000) {
             throw new \InvalidArgumentException('contextWindow must be at least 1000 tokens.');
+        }
+
+        if ($this->requestTimeout !== null && $this->requestTimeout <= 0) {
+            throw new \InvalidArgumentException('requestTimeout must be greater than 0 seconds.');
         }
 
         foreach ($this->subAgents as $id => $subConfig) {

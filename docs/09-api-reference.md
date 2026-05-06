@@ -52,6 +52,7 @@ class AssistantConfig
         public readonly array $middleware = [],
         public readonly ?LoggerInterface $logger = null,
         public readonly ?string $userId = null,
+        public readonly ?float $requestTimeout = null,
     ) {}
 }
 ```
@@ -59,6 +60,7 @@ class AssistantConfig
 ### Validation Rules
 
 - `contextWindow` must be at least 1000
+- `requestTimeout` must be greater than 0 (when provided)
 - All `subAgents` entries must be `SubAgentConfig` instances
 
 ## Context Condenser
@@ -456,3 +458,93 @@ class StderrLogger extends AbstractLogger
 ```
 
 The library uses PSR-3 `LoggerInterface` throughout. Pass any PSR-3 logger (Monolog, etc.) via `AssistantConfig::$logger`. Without one, a `NullLogger` is used (no output).
+
+## Built-in Tools
+
+### FileReaderTool
+
+Reads and extracts text from local documents. Supports PDF, DOCX, TXT, CSV, Markdown, HTML, JSON, XML, and RTF.
+
+```php
+use HackLab\AIAssistant\Tools\FileReader\FileReaderTool;
+
+new AssistantConfig(
+    provider: $provider,
+    storage: $storage,
+    tools: [new FileReaderTool()],
+);
+```
+
+#### Constructor
+
+```php
+new FileReaderTool(
+    int $maxFileSizeBytes = 52428800,  // 50MB
+    ?array $readers = null,            // Custom readers (null = defaults)
+);
+```
+
+#### Tool Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `file_path` | string | yes | Absolute path to the file |
+| `max_length` | integer | no | Max characters to return (default: 100000) |
+
+#### Response Format
+
+```json
+{
+    "success": true,
+    "file": "document.pdf",
+    "type": "pdf",
+    "size_bytes": 12345,
+    "content": "Extracted text...",
+    "truncated": false
+}
+```
+
+#### Supported Formats
+
+| Format | Extension | Reader |
+|--------|-----------|--------|
+| PDF | `.pdf` | `PdfDocumentReader` (smalot/pdfparser) |
+| Word | `.docx` | `DocxDocumentReader` (phpoffice/phpword) |
+| Plain Text | `.txt` | `PlainTextDocumentReader` |
+| CSV | `.csv` | `PlainTextDocumentReader` (formatted as table) |
+| Markdown | `.md` | `PlainTextDocumentReader` |
+| HTML | `.html`, `.htm` | `PlainTextDocumentReader` |
+| JSON | `.json` | `PlainTextDocumentReader` |
+| XML | `.xml` | `PlainTextDocumentReader` |
+| RTF | `.rtf` | `PlainTextDocumentReader` |
+
+#### Custom Readers
+
+Implement `DocumentReaderInterface` to add support for new file types:
+
+```php
+use HackLab\AIAssistant\Tools\FileReader\DocumentReaderInterface;
+use HackLab\AIAssistant\Tools\FileReader\FileReaderTool;
+
+class ExcelReader implements DocumentReaderInterface
+{
+    public function supports(string $type): bool
+    {
+        return $type === 'xlsx';
+    }
+
+    public function read(string $filePath): string
+    {
+        // Extract text from Excel...
+    }
+}
+
+$tool = new FileReaderTool(readers: [
+    new ExcelReader(),
+    // Default readers are NOT included when you pass custom ones.
+    // Add them manually if needed:
+    new \HackLab\AIAssistant\Tools\FileReader\PdfDocumentReader(),
+    new \HackLab\AIAssistant\Tools\FileReader\DocxDocumentReader(),
+    new \HackLab\AIAssistant\Tools\FileReader\PlainTextDocumentReader(),
+]);
+```
