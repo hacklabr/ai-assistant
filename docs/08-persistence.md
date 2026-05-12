@@ -249,6 +249,26 @@ $config = new AssistantConfig(
 );
 ```
 
+### Per-Domain Storage
+
+You can assign different storage backends for each domain. When omitted, the main `storage` is used as fallback.
+
+```php
+$config = new AssistantConfig(
+    provider: $provider,
+    storage: new FileStorage('/data/default'),
+    conversationStorage: new RedisStorage($redis),      // conversations in Redis
+    learningStorage: new FileStorage('/data/learning'),  // learning data on disk
+    userMemoryStorage: new DatabaseStorage($pdo),        // user memories in database
+);
+```
+
+| Parameter | Domain | Used by |
+|-----------|--------|---------|
+| `conversationStorage` | Conversations (threads) | `ConversationStore` |
+| `learningStorage` | Patterns, bugs, entries | `KnowledgeBase` |
+| `userMemoryStorage` | Per-user memories | `UserMemoryStore` |
+
 ## Migration from Neuron Chat History
 
 Neuron provides:

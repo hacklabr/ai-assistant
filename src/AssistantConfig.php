@@ -19,6 +19,9 @@ class AssistantConfig
      * @param array<int, mixed> $middleware
      * @param string|null $outputClass FQCN of a class with #[SchemaProperty] attributes for structured output
      * @param int $structuredMaxRetries Number of retries when structured output validation fails (default: 1)
+     * @param StorageInterface|null $conversationStorage Override storage for conversations (falls back to $storage)
+     * @param StorageInterface|null $learningStorage Override storage for learning/patterns/bugs (falls back to $storage)
+     * @param StorageInterface|null $userMemoryStorage Override storage for user memories (falls back to $storage)
      */
     public function __construct(
         public readonly AIProviderInterface $provider,
@@ -39,6 +42,9 @@ class AssistantConfig
         public readonly ?float $requestTimeout = null,
         public readonly ?string $outputClass = null,
         public readonly int $structuredMaxRetries = 1,
+        public readonly ?StorageInterface $conversationStorage = null,
+        public readonly ?StorageInterface $learningStorage = null,
+        public readonly ?StorageInterface $userMemoryStorage = null,
     ) {
         $this->validate();
     }

@@ -41,8 +41,17 @@ class Assistant extends \NeuronAI\Agent\Agent
     /** Get the skill registry */
     public function getSkillRegistry(): SkillRegistry;
     
-    /** Get the storage backend */
+    /** Get the default storage backend */
     public function getStorage(): StorageInterface;
+    
+    /** Get the storage backend for conversations */
+    public function getConversationStorage(): StorageInterface;
+    
+    /** Get the storage backend for learning data */
+    public function getLearningStorage(): StorageInterface;
+    
+    /** Get the storage backend for user memories */
+    public function getUserMemoryStorage(): StorageInterface;
     
     /** Get the auto-learning engine */
     public function getLearningEngine(): ?AutoLearningEngine;
@@ -76,8 +85,31 @@ class AssistantConfig
         public readonly ?float $requestTimeout = null,
         public readonly ?string $outputClass = null,
         public readonly int $structuredMaxRetries = 1,
+        public readonly ?StorageInterface $conversationStorage = null,
+        public readonly ?StorageInterface $learningStorage = null,
+        public readonly ?StorageInterface $userMemoryStorage = null,
     ) {}
 }
+```
+
+### Per-Domain Storage Overrides
+
+Each storage domain can use a different backend. When `null`, falls back to the main `storage`:
+
+| Parameter | Domain | Fallback |
+|-----------|--------|----------|
+| `conversationStorage` | Conversations (threads) | `$storage` |
+| `learningStorage` | Learning patterns, bugs, entries | `$storage` |
+| `userMemoryStorage` | Per-user persistent memories | `$storage` |
+
+```php
+new AssistantConfig(
+    provider: $provider,
+    storage: new FileStorage('/data/default'),
+    conversationStorage: new RedisStorage($redis),
+    learningStorage: new FileStorage('/data/learning'),
+    userMemoryStorage: new DatabaseStorage($pdo),
+);
 ```
 
 ### Validation Rules

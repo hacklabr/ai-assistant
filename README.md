@@ -74,6 +74,23 @@ $config = new AssistantConfig(
     requestTimeout: 120.0,           // HTTP client timeout in seconds (null = provider default: 60s)
     outputClass: null,               // FQCN for structured output (class with #[SchemaProperty])
     structuredMaxRetries: 1,         // Retries on structured output validation failure
+    conversationStorage: null,        // Override storage for conversations (falls back to $storage)
+    learningStorage: null,            // Override storage for learning data (falls back to $storage)
+    userMemoryStorage: null,          // Override storage for user memories (falls back to $storage)
+);
+```
+
+### Per-Domain Storage
+
+Assign different backends for conversations, learning, and user memories:
+
+```php
+new AssistantConfig(
+    provider: $provider,
+    storage: new FileStorage('/data/default'),
+    conversationStorage: new RedisStorage($redis),      // conversations in Redis
+    learningStorage: new FileStorage('/data/learning'),  // learning on disk
+    userMemoryStorage: new DatabaseStorage($pdo),        // memories in DB
 );
 ```
 

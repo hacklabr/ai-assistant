@@ -94,7 +94,8 @@ class Assistant extends Agent
         );
 
         if ($config->autoLearn) {
-            $this->knowledgeBase = new KnowledgeBase($this->storage);
+            $learningStorage = $config->learningStorage ?? $this->storage;
+            $this->knowledgeBase = new KnowledgeBase($learningStorage);
             $toolLearner = new ToolLearner($this->knowledgeBase);
             $bugCollector = new BugCollector($this->knowledgeBase);
             $suggestionEngine = new SuggestionEngine($toolLearner, $bugCollector);
@@ -107,7 +108,8 @@ class Assistant extends Agent
         }
 
         if ($config->userId !== null) {
-            $this->userMemoryStore = new UserMemoryStore($this->storage);
+            $memoryStorage = $config->userMemoryStorage ?? $this->storage;
+            $this->userMemoryStore = new UserMemoryStore($memoryStorage);
         }
 
         $this->logger->info('Assistant initialized', [
@@ -279,6 +281,21 @@ class Assistant extends Agent
     public function getStorage(): StorageInterface
     {
         return $this->storage;
+    }
+
+    public function getConversationStorage(): StorageInterface
+    {
+        return $this->config->conversationStorage ?? $this->storage;
+    }
+
+    public function getLearningStorage(): StorageInterface
+    {
+        return $this->config->learningStorage ?? $this->storage;
+    }
+
+    public function getUserMemoryStorage(): StorageInterface
+    {
+        return $this->config->userMemoryStorage ?? $this->storage;
     }
 
     public function getLearningEngine(): ?AutoLearningEngine
