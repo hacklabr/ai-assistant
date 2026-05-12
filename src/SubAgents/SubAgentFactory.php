@@ -12,10 +12,14 @@ use Psr\Log\NullLogger;
 
 class SubAgentFactory
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly SkillRegistry $skillRegistry,
-        private readonly LoggerInterface $logger = new NullLogger(),
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function create(SubAgentConfig $config): Agent
     {

@@ -14,10 +14,14 @@ class SkillRegistry
      */
     private array $skills = [];
 
+    private readonly MarkdownSkillLoader $loader;
+
     public function __construct(
         private readonly ?string $skillsPath = null,
-        private readonly MarkdownSkillLoader $loader = new MarkdownSkillLoader(),
-    ) {}
+        ?MarkdownSkillLoader $loader = null,
+    ) {
+        $this->loader = $loader ?? new MarkdownSkillLoader();
+    }
 
     /**
      * Load all skills from the skills directory.

@@ -15,12 +15,15 @@ use Psr\Log\NullLogger;
 
 class DelegateTool extends Tool
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly SubAgentDispatcher $dispatcher,
         private readonly SubAgentRegistry $registry,
         private readonly \Closure $getCurrentMessages,
-        private readonly LoggerInterface $logger = new NullLogger(),
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
         parent::__construct(
             name: 'delegate_to_subagent',
             description: $this->buildDescription(),

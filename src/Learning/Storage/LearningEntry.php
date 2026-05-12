@@ -9,14 +9,17 @@ namespace HackLab\AIAssistant\Learning\Storage;
  */
 class LearningEntry
 {
+    public readonly \DateTimeImmutable $timestamp;
+
     public function __construct(
         public readonly string $context,
         public readonly string $observation,
         public readonly bool $workedWell,
         public readonly array $tags = [],
         public readonly ?string $id = null,
-        public readonly \DateTimeImmutable $timestamp = new \DateTimeImmutable(),
+        ?\DateTimeImmutable $timestamp = null,
     ) {
+        $this->timestamp = $timestamp ?? new \DateTimeImmutable();
     }
 
     /**

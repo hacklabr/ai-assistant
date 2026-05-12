@@ -17,11 +17,13 @@ use NeuronAI\Chat\Messages\Message;
 class RelevanceStrategy implements ContextCondenserInterface
 {
     private readonly RelevanceScorer $scorer;
+    private readonly TokenEstimator $tokenEstimator;
 
     public function __construct(
-        private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
+        ?TokenEstimator $tokenEstimator = null,
         ?RelevanceScorer $scorer = null,
     ) {
+        $this->tokenEstimator = $tokenEstimator ?? new TokenEstimator();
         $this->scorer = $scorer ?? new RelevanceScorer(RelevanceScorer::getDefaultStrategies());
     }
 

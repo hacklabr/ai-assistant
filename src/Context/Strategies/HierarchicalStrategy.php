@@ -21,14 +21,20 @@ use NeuronAI\Providers\AIProviderInterface;
  */
 class HierarchicalStrategy implements ContextCondenserInterface
 {
+    private readonly TokenEstimator $tokenEstimator;
+    private readonly SensitiveDataRedactor $redactor;
+
     public function __construct(
         private readonly ?AIProviderInterface $summarizationProvider = null,
         private readonly int $recentMessages = 5,
         private readonly int $summaryThreshold = 8000,
-        private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
+        ?TokenEstimator $tokenEstimator = null,
         private readonly ?RelevanceScorer $relevanceScorer = null,
-        private readonly SensitiveDataRedactor $redactor = new SensitiveDataRedactor(),
-    ) {}
+        ?SensitiveDataRedactor $redactor = null,
+    ) {
+        $this->tokenEstimator = $tokenEstimator ?? new TokenEstimator();
+        $this->redactor = $redactor ?? new SensitiveDataRedactor();
+    }
 
     public function condense(
         array $messages,

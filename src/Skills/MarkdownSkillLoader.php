@@ -10,7 +10,7 @@ use Psr\Log\NullLogger;
 
 class MarkdownSkillLoader
 {
-    private const array PROMPT_INJECTION_PATTERNS = [
+    private const PROMPT_INJECTION_PATTERNS = [
         '/ignore\s+(previous|above|all)\s+(instructions|rules)/i',
         '/forget\s+(everything|all|previous)/i',
         '/you\s+are\s+now\s+/i',
@@ -20,11 +20,17 @@ class MarkdownSkillLoader
         '/override\s+(safety|security|restrictions)/i',
     ];
 
+    private readonly MarkdownParser $parser;
+    private readonly LoggerInterface $logger;
+
     public function __construct(
-        private readonly MarkdownParser $parser = new MarkdownParser(),
-        private readonly LoggerInterface $logger = new NullLogger(),
+        ?MarkdownParser $parser = null,
+        ?LoggerInterface $logger = null,
         private readonly int $maxFileSize = 65536,
-    ) {}
+    ) {
+        $this->parser = $parser ?? new MarkdownParser();
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function load(string $filePath): Skill
     {

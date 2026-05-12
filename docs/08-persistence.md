@@ -148,7 +148,7 @@ User is building a PHP library for AI assistants. Main concerns are:
 
 - Using Neuron AI as base framework
 - Wants zero additional dependencies
-- PHP 8.3 minimum
+- PHP 8.2 minimum
 - Package name: hacklab/ai-assistant
 ```
 

@@ -6,7 +6,7 @@ namespace HackLab\AIAssistant\Utils;
 
 class SensitiveDataRedactor
 {
-    private const array PATTERNS = [
+    private const PATTERNS = [
         '/sk-[a-zA-Z0-9]{20,}/' => '[REDACTED_API_KEY]',
         '/sk-ant-[a-zA-Z0-9\-]{20,}/' => '[REDACTED_ANTHROPIC_KEY]',
         '/AIza[a-zA-Z0-9\-_]{30,}/' => '[REDACTED_GOOGLE_KEY]',

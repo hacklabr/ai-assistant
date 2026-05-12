@@ -15,9 +15,13 @@ use NeuronAI\Chat\Messages\Message;
  */
 class TruncationStrategy implements ContextCondenserInterface
 {
+    private readonly TokenEstimator $tokenEstimator;
+
     public function __construct(
-        private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
-    ) {}
+        ?TokenEstimator $tokenEstimator = null,
+    ) {
+        $this->tokenEstimator = $tokenEstimator ?? new TokenEstimator();
+    }
 
     public function condense(
         array $messages,

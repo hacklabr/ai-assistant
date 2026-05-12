@@ -6,6 +6,8 @@ namespace HackLab\AIAssistant\Learning\Storage;
 
 class ToolPattern
 {
+    public readonly \DateTimeImmutable $timestamp;
+
     /**
      * @param array<string, mixed> $arguments
      * @param mixed $result
@@ -17,8 +19,10 @@ class ToolPattern
         public readonly mixed $result,
         public readonly ?string $error = null,
         public readonly array $context = [],
-        public readonly \DateTimeImmutable $timestamp = new \DateTimeImmutable(),
-    ) {}
+        ?\DateTimeImmutable $timestamp = null,
+    ) {
+        $this->timestamp = $timestamp ?? new \DateTimeImmutable();
+    }
 
     /**
      * Calculate similarity score with a task description (0.0 - 1.0).

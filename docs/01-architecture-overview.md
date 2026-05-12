@@ -8,7 +8,7 @@ An embeddable AI assistant framework built on top of Neuron AI, providing advanc
 
 - **Package**: `hacklab/ai-assistant`
 - **Namespace**: `HackLab\AIAssistant`
-- **PHP**: `^8.3`
+- **PHP**: `^8.2`
 - **Base Framework**: [Neuron AI](https://neuron-ai.dev/) (sole dependency)
 
 ## Architecture Layers
@@ -32,7 +32,7 @@ An embeddable AI assistant framework built on top of Neuron AI, providing advanc
 │              Neuron AI Framework                             │
 │     Agent, Workflow, Tools, RAG, ChatHistory, MCP           │
 ├─────────────────────────────────────────────────────────────┤
-│              PHP 8.3+                                        │
+│              PHP 8.2+                                        │
 └─────────────────────────────────────────────────────────────┘
 ```
 

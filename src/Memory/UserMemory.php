@@ -6,6 +6,8 @@ namespace HackLab\AIAssistant\Memory;
 
 class UserMemory
 {
+    public readonly \DateTimeImmutable $createdAt;
+
     /**
      * @param string[] $tags
      */
@@ -15,9 +17,11 @@ class UserMemory
         public readonly string $category,
         public readonly string $content,
         public readonly array $tags = [],
-        public readonly \DateTimeImmutable $createdAt = new \DateTimeImmutable(),
+        ?\DateTimeImmutable $createdAt = null,
         public readonly ?\DateTimeImmutable $updatedAt = null,
-    ) {}
+    ) {
+        $this->createdAt = $createdAt ?? new \DateTimeImmutable();
+    }
 
     public function matches(string $query): float
     {

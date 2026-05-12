@@ -13,12 +13,16 @@ use Psr\Log\NullLogger;
 
 class SubAgentDispatcher
 {
+    private readonly LoggerInterface $logger;
+
     public function __construct(
         private readonly SubAgentRegistry $registry,
         private readonly SubAgentFactory $factory,
         private readonly ContextCondenserInterface $condenser,
-        private readonly LoggerInterface $logger = new NullLogger(),
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public function delegate(
         string $subAgentId,

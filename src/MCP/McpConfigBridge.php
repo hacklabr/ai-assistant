@@ -10,7 +10,7 @@ use Psr\Log\NullLogger;
 
 class McpConfigBridge
 {
-    private const array ALLOWED_COMMANDS = [
+    private const ALLOWED_COMMANDS = [
         'npx',
         'node',
         'python3',
@@ -20,9 +20,13 @@ class McpConfigBridge
         'php',
     ];
 
+    private readonly LoggerInterface $logger;
+
     public function __construct(
-        private readonly LoggerInterface $logger = new NullLogger(),
-    ) {}
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->logger = $logger ?? new NullLogger();
+    }
 
     public static function make(array $config, ?LoggerInterface $logger = null): McpConnector
     {

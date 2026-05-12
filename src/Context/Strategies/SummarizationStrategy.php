@@ -17,14 +17,20 @@ use NeuronAI\Providers\AIProviderInterface;
  */
 class SummarizationStrategy implements ContextCondenserInterface
 {
+    private readonly TokenEstimator $tokenEstimator;
+    private readonly SensitiveDataRedactor $redactor;
+
     public function __construct(
         private readonly AIProviderInterface $provider,
         private readonly int $maxTokens = 10000, // phpstan: ignore property.onlyWritten
         private readonly int $messagesToKeep = 5,
         private readonly string $systemPrompt = 'Please provide a comprehensive summary of the following conversation. Extract the highest quality and most relevant pieces of information, including key topics discussed, important decisions made, critical information exchanged, action items, and any unresolved questions.',
-        private readonly TokenEstimator $tokenEstimator = new TokenEstimator(),
-        private readonly SensitiveDataRedactor $redactor = new SensitiveDataRedactor(),
-    ) {}
+        ?TokenEstimator $tokenEstimator = null,
+        ?SensitiveDataRedactor $redactor = null,
+    ) {
+        $this->tokenEstimator = $tokenEstimator ?? new TokenEstimator();
+        $this->redactor = $redactor ?? new SensitiveDataRedactor();
+    }
 
     public function condense(
         array $messages,

@@ -16,7 +16,7 @@ An embeddable AI assistant framework for PHP built on top of [Neuron AI](https:/
 
 ## Requirements
 
-- PHP 8.3+
+- PHP 8.2+
 - [Neuron AI](https://neuron-ai.dev/) ^3.0
 
 ## Installation
@@ -517,7 +517,7 @@ BSD 3-Clause License
 ## Contributing
 
 Contributions are welcome! Please ensure:
-- PHP 8.3+ with `declare(strict_types=1)`
+- PHP 8.2+ with `declare(strict_types=1)`
 - PSR-12 coding standards
 - Tests for new features
 - All documentation in English

@@ -6,7 +6,7 @@ namespace HackLab\AIAssistant\Tools;
 
 trait GuardsAgainstPoisoning
 {
-    private const array SUSPICIOUS_PATTERNS = [
+    private const SUSPICIOUS_PATTERNS = [
         '/\bnever\s+(use|call|run|execute|invoke)\s+/i',
         '/\balways\s+(skip|ignore|avoid|disable|bypass)\s+/i',
         '/\bdisable\s+(all|every|any|the|security|validation|auth)/i',
@@ -30,7 +30,7 @@ trait GuardsAgainstPoisoning
         return false;
     }
 
-    private const array DELETION_PATTERNS = [
+    private const DELETION_PATTERNS = [
         '/\bforget\s+(all|every|everything|about)\b/i',
         '/\berase\s+(all|every|everything)\b/i',
         '/\bdelete\s+(all|every|everything)\b/i',

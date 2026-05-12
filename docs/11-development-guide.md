@@ -14,7 +14,7 @@ cat > composer.json <<'JSON'
     "description": "Embeddable AI assistant framework for PHP",
     "type": "library",
     "require": {
-        "php": "^8.3",
+        "php": "^8.2",
         "neuron-ai": "^3.0"
     },
     "require-dev": {
@@ -103,7 +103,7 @@ composer install
 
 ## Code Standards
 
-- **PHP**: 8.3+ with strict types (`declare(strict_types=1)`)
+- **PHP**: 8.2+ with strict types (`declare(strict_types=1)`)
 - **Style**: PSR-12
 - **Types**: Full type declarations, return types, and typed properties
 - **Documentation**: PHPDoc for all public methods
