@@ -34,7 +34,9 @@ use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\ChatHistoryInterface;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -224,6 +226,30 @@ class Assistant extends Agent
         return new HierarchicalChatHistory(
             contextWindow: $this->config->contextWindow,
             summarizationProvider: $this->config->provider,
+        );
+    }
+
+    protected function getOutputClass(): string
+    {
+        if ($this->config->outputClass === null) {
+            throw new AgentException(
+                'No output class configured. Pass outputClass to AssistantConfig or provide a class to structured().'
+            );
+        }
+        return $this->config->outputClass;
+    }
+
+    public function structured(
+        Message|array $messages = [],
+        ?string $class = null,
+        int $maxRetries = -1,
+        ?InterruptRequest $interrupt = null,
+    ): mixed {
+        return parent::structured(
+            messages: $messages,
+            class: $class,
+            maxRetries: $maxRetries >= 0 ? $maxRetries : $this->config->structuredMaxRetries,
+            interrupt: $interrupt,
         );
     }
 

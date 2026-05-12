@@ -12,6 +12,7 @@ An embeddable AI assistant framework for PHP built on top of [Neuron AI](https:/
 - **User Memory** - Per-user persistent memories scoped by backend-provided user ID
 - **MCP Integration** - Native support for stdio, SSE, and HTTP transports via Neuron's MCP connector
 - **Security First** - Encrypted config, sensitive data redaction, MCP command allowlist, PSR-3 logging
+- **Structured Output** - Typed PHP objects with validation via Neuron's `#[SchemaProperty]` system
 
 ## Requirements
 
@@ -71,6 +72,8 @@ $config = new AssistantConfig(
     userId: $currentUser->getId(),   // Backend-provided user ID (for user memory)
     logger: $psr3Logger,             // PSR-3 logger (optional)
     requestTimeout: 120.0,           // HTTP client timeout in seconds (null = provider default: 60s)
+    outputClass: null,               // FQCN for structured output (class with #[SchemaProperty])
+    structuredMaxRetries: 1,         // Retries on structured output validation failure
 );
 ```
 
@@ -378,6 +381,86 @@ The assistant gains the `read_file` tool which accepts `file_path` (required) an
 | XML | `.xml` | Native |
 | RTF | `.rtf` | Native |
 
+## Structured Output
+
+Return typed PHP objects instead of plain text. Ideal for generating application configuration, extracting data, or building JSON APIs.
+
+### Define an output class
+
+```php
+use NeuronAI\StructuredOutput\SchemaProperty;
+
+class MapLayer
+{
+    #[SchemaProperty(description: 'Layer name', required: true)]
+    public string $name;
+
+    #[SchemaProperty(description: 'Layer type: raster, vector, tile', required: true)]
+    public string $type;
+
+    #[SchemaProperty(description: 'Source URL', required: true)]
+    public string $source;
+
+    #[SchemaProperty(description: 'Default visibility', required: false)]
+    public bool $visible = true;
+}
+
+class MapConfig
+{
+    #[SchemaProperty(description: 'Map title', required: true)]
+    public string $title;
+
+    #[SchemaProperty(description: 'Map layers', required: true, anyOf: [MapLayer::class])]
+    public array $layers;
+}
+```
+
+### Configure and use
+
+```php
+$assistant = Assistant::configure(
+    new AssistantConfig(
+        provider: new Anthropic('key', 'claude-sonnet-4'),
+        storage: new FileStorage(__DIR__ . '/storage'),
+        instructions: 'You configure interactive maps.',
+        outputClass: MapConfig::class,
+    )
+);
+
+$config = $assistant->structured(
+    new UserMessage('Street map of São Paulo with satellite overlay')
+);
+
+// Use as object
+echo $config->title;
+foreach ($config->layers as $layer) {
+    echo $layer->name;
+}
+
+// Or return as JSON to a frontend
+header('Content-Type: application/json');
+echo json_encode($config);
+```
+
+### Explicit class per call
+
+```php
+$assistant = Assistant::configure(
+    new AssistantConfig(
+        provider: $provider,
+        storage: $storage,
+        instructions: 'Extract contact info from text.',
+    )
+);
+
+$contact = $assistant->structured(
+    new UserMessage('Alice, alice@example.com, (11) 99999-0000'),
+    ContactInfo::class,
+);
+```
+
+See [API Reference](docs/09-api-reference.md#structured-output) for full details including validation rules and nested objects.
+
 ## CLI Example
 
 Interactive command-line assistant:
@@ -399,8 +482,8 @@ Full architecture documentation is available in the `docs/` directory:
 - [MCP Integration](docs/06-mcp-integration.md)
 - [Auto-Learning](docs/07-auto-learning.md)
 - [Persistence](docs/08-persistence.md)
-- [API Reference](docs/09-api-reference.md)
-- [Examples](docs/10-examples.md)
+- [API Reference](docs/09-api-reference.md) (includes Structured Output)
+- [Examples](docs/10-examples.md) (includes Map Config, Data Extraction, Reports)
 - [Development Guide](docs/11-development-guide.md)
 - [Security Audit](docs/12-security-audit.md)
 

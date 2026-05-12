@@ -8,6 +8,27 @@ class Assistant extends \NeuronAI\Agent\Agent
     /** Create from configuration */
     public static function configure(AssistantConfig $config): self;
     
+    /** Chat with the assistant (returns AgentHandler for streaming/tool-calls) */
+    public function chat(Message|array $messages = [], ?InterruptRequest $interrupt = null): AgentHandler;
+    
+    /**
+     * Get structured output from the assistant.
+     * Returns a filled instance of the output class with #[SchemaProperty] attributes.
+     *
+     * @param Message|Message[] $messages The user message(s)
+     * @param string|null $class FQCN of the output class (uses outputClass from config if null)
+     * @param int $maxRetries Override retry count (-1 = use config's structuredMaxRetries)
+     * @param InterruptRequest|null $interrupt Optional interrupt request
+     * @return object Filled instance of the output class
+     * @throws AgentException If no output class is configured and none provided
+     */
+    public function structured(
+        Message|array $messages = [],
+        ?string $class = null,
+        int $maxRetries = -1,
+        ?InterruptRequest $interrupt = null,
+    ): mixed;
+    
     /** Delegate to a sub-agent */
     public function delegate(string $subAgentId, UserMessage $message): SubAgentResult;
     
@@ -53,6 +74,8 @@ class AssistantConfig
         public readonly ?LoggerInterface $logger = null,
         public readonly ?string $userId = null,
         public readonly ?float $requestTimeout = null,
+        public readonly ?string $outputClass = null,
+        public readonly int $structuredMaxRetries = 1,
     ) {}
 }
 ```
@@ -61,7 +84,219 @@ class AssistantConfig
 
 - `contextWindow` must be at least 1000
 - `requestTimeout` must be greater than 0 (when provided)
+- `structuredMaxRetries` must be 0 or greater
 - All `subAgents` entries must be `SubAgentConfig` instances
+- `outputClass` must be an existing class (when provided)
+
+## Structured Output
+
+The assistant supports structured output via Neuron AI's `#[SchemaProperty]` system. Define a PHP class with typed properties and the `SchemaProperty` attribute, and the assistant will return a filled instance instead of plain text.
+
+### Output Class Definition
+
+```php
+use NeuronAI\StructuredOutput\SchemaProperty;
+
+class MapLayer
+{
+    #[SchemaProperty(description: 'Layer name', required: true)]
+    public string $name;
+
+    #[SchemaProperty(description: 'Layer type: raster, vector, tile', required: true)]
+    public string $type;
+
+    #[SchemaProperty(description: 'Source URL or identifier', required: true)]
+    public string $source;
+
+    #[SchemaProperty(description: 'Default visibility', required: false)]
+    public bool $visible = true;
+
+    #[SchemaProperty(description: 'Opacity from 0 to 1', required: false)]
+    public float $opacity = 1.0;
+}
+
+class MapConfig
+{
+    #[SchemaProperty(description: 'Map title', required: true)]
+    public string $title;
+
+    #[SchemaProperty(description: 'Map layers configuration', required: true, anyOf: [MapLayer::class])]
+    public array $layers;
+
+    #[SchemaProperty(description: 'Center coordinates [lat, lng]', required: false)]
+    public ?array $center = null;
+
+    #[SchemaProperty(description: 'Default zoom level', required: false)]
+    public ?int $zoom = null;
+}
+```
+
+### Usage
+
+**Option A — Default output class via config:**
+
+```php
+$assistant = Assistant::configure(
+    new AssistantConfig(
+        provider: $provider,
+        storage: $storage,
+        instructions: 'You configure interactive maps based on user requirements.',
+        outputClass: MapConfig::class,
+    )
+);
+
+$config = $assistant->structured(
+    new UserMessage('Create a street map of São Paulo with satellite overlay')
+);
+// $config is a MapConfig instance
+echo $config->title;
+foreach ($config->layers as $layer) {
+    echo $layer->name . ': ' . $layer->type;
+}
+```
+
+**Option B — Explicit class per call:**
+
+```php
+$assistant = Assistant::configure(
+    new AssistantConfig(
+        provider: $provider,
+        storage: $storage,
+        instructions: 'You are a data extraction assistant.',
+    )
+);
+
+$person = $assistant->structured(
+    new UserMessage('My name is Alice, I am 30 years old and live in Berlin.'),
+    PersonInfo::class,
+);
+```
+
+### Validation
+
+Add validation attributes to your output class properties. If validation fails, Neuron automatically retries the request up to `structuredMaxRetries` times:
+
+```php
+use NeuronAI\StructuredOutput\SchemaProperty;
+use NeuronAI\StructuredOutput\Validation\Rules\NotBlank;
+use NeuronAI\StructuredOutput\Validation\Rules\Length;
+use NeuronAI\StructuredOutput\Validation\Rules\Count;
+
+class ReportConfig
+{
+    #[SchemaProperty(description: 'Report title', required: true)]
+    #[NotBlank]
+    #[Length(min: 3, max: 255)]
+    public string $title;
+
+    #[SchemaProperty(description: 'Report sections', required: true, anyOf: [Section::class])]
+    #[Count(min: 1)]
+    public array $sections;
+}
+```
+
+### Available Validation Rules
+
+| Rule | Description |
+|------|-------------|
+| `#[NotBlank]` | Value cannot be empty |
+| `#[Length(min:, max:, exactly:)]` | String length constraints |
+| `#[WordsCount(min:, max:, exactly:)]` | Word count constraints |
+| `#[Count(min:, max:, exactly:)]` | Array size constraints |
+| `#[EqualTo(reference:)]` / `#[NotEqualTo(reference:)]` | Exact value comparison |
+| `#[GreaterThan(reference:)]` / `#[GreaterThanEqual(reference:)]` | Minimum value |
+| `#[LowerThan(reference:)]` / `#[LowerThanEqual(reference:)]` | Maximum value |
+| `#[OutOfRange(min:, max:)]` | Value must be outside range |
+| `#[IsTrue]` / `#[IsFalse]` | Boolean value assertion |
+| `#[IsNull]` / `#[IsNotNull]` | Nullability assertion |
+| `#[Json]` | Must be valid JSON string |
+| `#[Url]` | Must be valid URL |
+| `#[Email]` | Must be valid email |
+| `#[IpAddress]` | Must be valid IP address |
+| `#[ArrayOf(class:)]` | Array must contain instances of class |
+
+### Nested Objects and Arrays
+
+Output classes can reference other structured classes as properties or array items:
+
+```php
+class Address
+{
+    #[SchemaProperty(description: 'Street name', required: true)]
+    public string $street;
+
+    #[SchemaProperty(description: 'City', required: false)]
+    public ?string $city = null;
+
+    #[SchemaProperty(description: 'ZIP code', required: true)]
+    public string $zip;
+}
+
+class Contact
+{
+    #[SchemaProperty(description: 'Full name', required: true)]
+    public string $name;
+
+    #[SchemaProperty(description: 'Address', required: true)]
+    public Address $address;
+
+    #[SchemaProperty(description: 'Tags', required: true, anyOf: [Tag::class])]
+    public array $tags;
+}
+```
+
+### Converting to JSON
+
+To use the structured output as application configuration (e.g., return as JSON to a frontend):
+
+```php
+$config = $assistant->structured(
+    new UserMessage('Create a street map with satellite overlay')
+);
+
+header('Content-Type: application/json');
+echo json_encode($config, JSON_PRETTY_PRINT);
+```
+
+Output:
+
+```json
+{
+    "title": "Street Map with Satellite Overlay",
+    "layers": [
+        {
+            "name": "Satellite Imagery",
+            "type": "raster",
+            "source": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+            "visible": true,
+            "opacity": 0.7
+        },
+        {
+            "name": "Street Network",
+            "type": "vector",
+            "source": "mapbox://mapbox.mapbox-streets-v8",
+            "visible": true,
+            "opacity": 1.0
+        }
+    ],
+    "center": [-23.5505, -46.6333],
+    "zoom": 12
+}
+```
+
+### SchemaProperty Reference
+
+```php
+#[SchemaProperty(
+    description: 'Property description for the LLM',  // Required: helps the LLM understand what to fill
+    required: true,                                     // Whether the property is required
+    minLength: 1,                                       // String minimum length
+    maxLength: 255,                                     // String maximum length
+    min: 0,                                             // Numeric minimum
+    max: 100,                                           // Numeric maximum
+    anyOf: [SomeClass::class],                          // Array item types (for array properties)
+)]
+```
 
 ## Context Condenser
 

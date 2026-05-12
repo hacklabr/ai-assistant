@@ -17,6 +17,8 @@ class AssistantConfig
      * @param string[] $skills
      * @param array<int, array<string, mixed>> $mcps
      * @param array<int, mixed> $middleware
+     * @param string|null $outputClass FQCN of a class with #[SchemaProperty] attributes for structured output
+     * @param int $structuredMaxRetries Number of retries when structured output validation fails (default: 1)
      */
     public function __construct(
         public readonly AIProviderInterface $provider,
@@ -35,6 +37,8 @@ class AssistantConfig
         public readonly ?LoggerInterface $logger = null,
         public readonly ?string $userId = null,
         public readonly ?float $requestTimeout = null,
+        public readonly ?string $outputClass = null,
+        public readonly int $structuredMaxRetries = 1,
     ) {
         $this->validate();
     }
@@ -53,6 +57,14 @@ class AssistantConfig
             if (!$subConfig instanceof SubAgentConfig) {
                 throw new \InvalidArgumentException("Sub-agent '{$id}' must be an instance of SubAgentConfig.");
             }
+        }
+
+        if ($this->structuredMaxRetries < 0) {
+            throw new \InvalidArgumentException('structuredMaxRetries must be 0 or greater.');
+        }
+
+        if ($this->outputClass !== null && !class_exists($this->outputClass)) {
+            throw new \InvalidArgumentException("outputClass '{$this->outputClass}' does not exist.");
         }
     }
 }
