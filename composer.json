@@ -2,7 +2,7 @@
     "name": "hacklabr/ai-assistant",
     "description": "Embeddable AI assistant framework for PHP built on Neuron AI",
     "type": "library",
-    "license": "MIT",
+    "license": "BSD-3-Clause",
     "keywords": ["ai", "assistant", "agent", "llm", "neuron", "mcp"],
     "authors": [
         {
